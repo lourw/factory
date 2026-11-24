@@ -335,6 +335,18 @@ func worktreeLine(s *Store, it Item) string {
 	return fmt.Sprintf("worktree: %s (branch %s). Work only inside it.", featureWorktree(s, it), branchName(it))
 }
 
+// dirtyNote warns the builder about leftovers only when the worktree has uncommitted changes.
+func dirtyNote(s *Store, it Item) string {
+	wt := featureWorktree(s, it)
+	if !dirExists(wt) {
+		return ""
+	}
+	if out, ok := gitRun(wt, "status", "--porcelain"); !ok || strings.TrimSpace(out) == "" {
+		return ""
+	}
+	return "\nUncommitted changes are from an interrupted attempt at this task: keep what's useful, discard the rest."
+}
+
 func briefBuild(s *Store, it Item, t Task, fix bool) string {
 	packet := s.getDoc("task", it.ID, t.N)
 	if packet == "" {
@@ -347,8 +359,7 @@ func briefBuild(s *Store, it Item, t Task, fix bool) string {
 	parts := []string{
 		fmt.Sprintf("# Build brief: %s T%d: %s", fid(it.ID), t.N, t.Title),
 		"Budget: " + budgetFor(s).Reading,
-		fmt.Sprintf("item: %s: %s | mode: %s\n%s\nIf `git status` shows uncommitted changes, they are from an interrupted attempt at this task: keep what's useful, discard the rest.",
-			kindScope(it), it.Title, mode, worktreeLine(s, it)),
+		fmt.Sprintf("item: %s: %s | mode: %s\n%s", kindScope(it), it.Title, mode, worktreeLine(s, it)) + dirtyNote(s, it),
 		acBlock(s, it, t.Covers),
 		optSection("Dependencies (already committed in this worktree)", depLines(s, it, t)),
 		section("Packet", packet),
@@ -381,7 +392,7 @@ func briefVerify(s *Store, it Item, t Task, tests bool) string {
 	return joinParts([]string{
 		fmt.Sprintf("# Verify brief: %s T%d: %s", fid(it.ID), t.N, t.Title),
 		"Budget: " + budgetFor(s).Reading,
-		fmt.Sprintf("commit: %s | tests: %s\n%s", t.Sha, mode, worktreeLine(s, it)),
+		fmt.Sprintf("commit: %s | tests: %s\n%s", sh, mode, worktreeLine(s, it)),
 		acBlock(s, it, t.Covers),
 		optSection("Packet (what was asked)", s.getDoc("task", it.ID, t.N)),
 		fmt.Sprintf("## How to inspect\n- `git show --stat %s`, then per file `git show %[1]s -- <path>`\n"+

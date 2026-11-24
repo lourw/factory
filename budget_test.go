@@ -11,8 +11,8 @@ func TestBudgetPlanBrief(t *testing.T) {
 	s.putDoc("spec", "## Acceptance criteria\n- **AC1**: one", it.ID, 0)
 	s.exec("INSERT INTO tasks(item_id,n,title,covers) VALUES(?,1,'a','AC1')", it.ID)
 	for _, c := range []struct{ backend, size, reading string }{
-		{"claude", "≤400", "Large context"},
-		{"opencode", "≤150", "Small context"},
+		{"claude", "≤400", "large: "},
+		{"opencode", "≤150", "small: "},
 	} {
 		t.Setenv("FACTORY_BACKEND", c.backend)
 		got := briefPlan(s, it)
