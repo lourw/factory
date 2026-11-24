@@ -27,7 +27,7 @@ Because they're symlinks, edits in this repo take effect immediately. Without `-
 
 1. **Hand-write a skeleton with a green gate.** For example: `npm init`, a `src/todos.ts` with one function, one passing test, and lint/typecheck configs, committed on `main`. The factory builds *onto* a working project. Every task is accepted only if the gate passes, so the gate has to pass before the first task.
 2. **`factory init`** creates `.factory/`, adds it to `.git/info/exclude`, and registers the project.
-3. **`/factory-init` in opencode** (overseer agent). It finds the `setup` and gate commands (`format`, `lint`, `typecheck`, `test`, `test_focused`, `build`), records them with `factory gate config`, validates them with `factory gate`, and writes the code map that agents read instead of exploring.
+3. **Project setup, from either tool.** In Claude Code, say "init factory" to the `factory-feature` skill (its init mode). In opencode, run `/factory-init` (overseer agent). Both follow `factory internal template init`: find the `setup` and gate commands (`format`, `lint`, `typecheck`, `test`, `test_focused`, `build`), record them with `factory gate config`, validate them with `factory gate`, and write the code map that agents read instead of exploring.
 4. **Write work with `/factory-feature` in Claude Code.** For example: "add todo priorities", or "bug: completing a todo in a filtered view crashes". The skill interviews you briefly, then writes the spec with testable `**ACn**` criteria. It splits the work into tasks of about 150 changed lines or fewer, researches the code, writes a full packet for every task, checks the result with `factory cat plan <id>`, and queues it with `factory ready <id>`.
 5. **`factory board`** shows the queue, the health header, and each item's next step.
 6. **`factory run`** builds every ready feature until the queue is empty or everything left is parked.
@@ -48,14 +48,15 @@ Because they're symlinks, edits in this repo take effect immediately. Without `-
 | `set <item> [-p 1-4] [--title t] [--kind k] [--scope s] [--status s]` | Edit a feature. On a parked item, `--status ready` resumes it: blocked and failed tasks reset, and the existing worktree and branch are kept. |
 | `clean [--parked]` | Remove worktrees and branches of merged, dropped and orphaned features, run `git worktree prune`, and auto-remap shifted packet refs. Parked worktrees: asks y/N per item on a TTY, keeps them otherwise, `--parked` removes them (branch kept). It lists changed packets as "needs a model → /factory-feature refresh" and never edits those. |
 
-### `/factory-init` (opencode)
-One-time interactive setup: discovers the setup and gate commands and writes the code map (and optional lessons).
+### Project setup: skill init mode (Claude Code) or /factory-init (opencode)
+One-time interactive setup: discovers the setup and gate commands and writes the code map (and optional lessons). Both routes print and follow `factory internal template init`, so the steps are the same either way.
 
 ### The `factory-feature` skill (Claude Code or opencode)
 - **feature (full plan, default):** spec, tasks, and a complete packet per task. Tasks that already have packets skip the overseer's plan job.
 - **bug:** investigates the likely cause first, fills the bug template (Repro, Expected, Actual, Suspected area, ACs), sets kind `fix` and p1. `**AC1**` must be the regression test.
 - **refresh:** `factory stale`, then `factory brief refresh <id> T<n>` per flagged task, then the packet is rewritten with the same scope.
 - **quick (only on request):** spec plus one-line tasks; the overseer writes the packets during the run.
+- **init:** one-time project setup ("init factory"): follows `factory internal template init`, the same steps as `/factory-init`.
 
 ### Other command groups
 Skill commands (`add`, `write`, `task-add`, `cat`, `ready`, `stale`, `brief refresh`, `edit`), agent commands (`brief`, `write`, `test`, `gate`) and internal commands (`task-set`, `task-next`, `log`, `template`, `gate config`, `install`, `stats`) are documented by `factory help skill|agent|internal`. Internal commands run as `factory internal <cmd>`; the exception is `gate config`, which is spelled `factory gate config`.

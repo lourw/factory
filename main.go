@@ -133,7 +133,7 @@ type command struct {
 
 var commands = map[string]command{
 	// human
-	"init":  {cmdInit, nil, "human", "init: set up .factory/ in this repo (then /factory-init in opencode)"},
+	"init":  {cmdInit, nil, "human", "init: set up .factory/ in this repo (then the factory-feature skill's init mode, or /factory-init in opencode)"},
 	"board": {cmdBoard, []string{"all", "done", "flat"}, "human", "board [-a] [--flat] [--done] [--kind k]: health summary + features by status with their next step"},
 	"show":  {cmdShow, []string{"md"}, "human", "show <item> [--md] [-n events]: one feature: tasks, worktree, events (--md: summary for a PR)"},
 	"run":   {cmdRun, []string{"dry-run"}, "human", "run [--slots 3] [--features 2] [--stale refresh|hold] [--backend opencode|claude] [--main b] [--dry-run]: build ready features until the queue is empty"},
@@ -156,7 +156,7 @@ var commands = map[string]command{
 	"task-next": {cmdTaskNext, []string{"pipeline"}, "internal", "task-next <item> [--pipeline] [--exclude T3]"},
 	"task-set":  {cmdTaskSet, nil, "internal", "task-set <item> <task> [--status s] [--sha x] [--note n] [--title t] [--covers c] [--deps d]"},
 	"log":       {cmdLog, nil, "internal", "log <item> <msg...> [--task Tn] [--kind k]"},
-	"template":  {cmdTemplate, nil, "internal", "template <name>: spec bug task report verify map lessons"},
+	"template":  {cmdTemplate, nil, "internal", "template <name>: spec bug task report verify map lessons init"},
 	"install":   {cmdInstall, []string{"uninstall", "force"}, "internal", "install [--link <repo>] [--uninstall] [--force]: opencode agents/commands + skills"},
 	"stats":     {cmdStats, []string{"all"}, "internal", "stats [-a]: lead time, fix rounds, gate pass rates"},
 	"config":    {cmdConfig, nil, "internal", "config [key] [value]: per-project settings (worktree_root cache_dir tagging post_land remote main_branch; '-' unsets)"},

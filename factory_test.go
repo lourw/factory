@@ -27,6 +27,46 @@ func TestParseArgs(t *testing.T) {
 	}
 }
 
+func TestInitInstructionsSingleSourced(t *testing.T) {
+	steps := tpl("init")
+	for _, want := range []string{"factory gate config", "factory gate", "factory write map"} {
+		if !strings.Contains(steps, want) {
+			t.Fatalf("templates/init.md missing %q", want)
+		}
+	}
+	for _, path := range []string{"commands/factory-init.md", "skills/factory-feature/SKILL.md"} {
+		b, err := opencodeFS.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), "factory internal template init") {
+			t.Fatalf("%s does not reference `factory internal template init`", path)
+		}
+	}
+	cmd, _ := opencodeFS.ReadFile("commands/factory-init.md")
+	if strings.Contains(string(cmd), "factory write map") {
+		t.Fatal("commands/factory-init.md duplicates the setup steps")
+	}
+}
+
+func TestSetupHintsMentionBothRoutes(t *testing.T) {
+	for _, want := range []string{"factory-feature skill", "/factory-init"} {
+		if !strings.Contains(commands["init"].usage, want) {
+			t.Fatalf("init usage missing %q: %s", want, commands["init"].usage)
+		}
+	}
+	if !strings.Contains(commands["template"].usage, " init") {
+		t.Fatalf("template usage does not list init: %s", commands["template"].usage)
+	}
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(readme), "skill init mode (Claude Code) or /factory-init (opencode)") {
+		t.Fatal("README setup reference section does not describe both routes")
+	}
+}
+
 func TestE2EScriptsExitOnFailure(t *testing.T) {
 	paths, err := filepath.Glob("test/e2e/*.sh")
 	if err != nil {

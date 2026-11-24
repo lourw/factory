@@ -34,7 +34,7 @@ func lastGate(s *Store) string {
 		}
 	}
 	if len(names) == 0 {
-		return "no checks (run /factory-init)"
+		return "no checks (set up: factory-feature init, or /factory-init)"
 	}
 	var ts float64
 	var failed []string

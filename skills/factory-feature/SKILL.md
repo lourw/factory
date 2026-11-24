@@ -1,6 +1,6 @@
 ---
 name: factory-feature
-description: Turn an idea or a bug report into factory-ready work (spec with testable acceptance criteria, sized tasks with packets) using the `factory` CLI, or refresh stale task packets. Use when the user wants to add, plan, report, or queue work for `factory run`, check the factory queue, or fix stale packets.
+description: Turn an idea or a bug report into factory-ready work (spec with testable acceptance criteria, sized tasks with packets) using the `factory` CLI, or refresh stale task packets. Use when the user wants to add, plan, report, or queue work for `factory run`, check the factory queue, or fix stale packets. Also sets up a repository for the factory (gate commands and code map) when the user asks to init or set up factory.
 ---
 
 # factory-feature
@@ -14,6 +14,7 @@ The builder is a **small model that reads only its task packet**. Packet quality
 - **Bug**: same flow with the bug template; investigate the cause first (see "Bugs").
 - **Quick** (only when the user asks for it): spec plus one-line tasks with hints. The overseer writes the packets during `factory run`.
 - **Refresh**: fix packets that went stale because other features merged (see the end of this file).
+- **Init**: one-time setup of a repo for the factory (see "Init mode" at the end).
 
 Decide feature vs bug from the user's wording ("broken", "crashes", "wrong", "regression" → bug). Ask if it's unclear.
 
@@ -119,3 +120,9 @@ factory write task 4 T2 <<'EOF'
 EOF
 ```
 Keep the task's scope identical; only update refs, line ranges, and instructions that the code change invalidated. During full plan, run `factory stale` first if the feature builds on recently merged work.
+
+## Init mode (one-time setup)
+When the user asks to init or set up the factory for this repo:
+1. If `factory board` errors with no factory db (`.factory/` is missing), run `factory init`.
+2. Run `factory internal template init` and follow it exactly.
+3. Finish by telling the user to write features with this skill, then run `factory run`.

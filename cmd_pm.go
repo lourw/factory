@@ -53,8 +53,8 @@ func cmdInit(a Args) {
 	}
 	register(root)
 	fmt.Printf("initialized %s/.factory (excluded from git, registered)\n", root)
-	fmt.Println("next: run /factory-init in opencode (discovers setup + gate commands, writes the code map),")
-	fmt.Println("      then write features with /factory-feature in Claude Code, and `factory run`")
+	fmt.Println("next: set up gate commands + code map: \"init factory\" with the factory-feature skill in Claude Code, or /factory-init in opencode,")
+	fmt.Println("      then write features with /factory-feature and run `factory run`")
 }
 
 func validKind(k string) string {
