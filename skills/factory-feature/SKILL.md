@@ -22,80 +22,52 @@ Decide feature vs bug from the user's wording ("broken", "crashes", "wrong", "re
 ## 1. Interview (brief)
 Ask only what changes what gets built: scope edges, behavior on errors, what's out of scope. Two rounds at most. Record defaults you picked as assumptions.
 
-## 2. Create the feature
+## 2. Research, then import the whole plan
+Research narrowly (search for symbols, read the relevant windows). Then write header, spec, and every task with its packet in one call:
 ```sh
-factory add "<imperative title>" --kind feat --scope <area> -p 2
-#   kind: feat|fix|chore|refactor|perf|test|docs|build|ci   (it becomes the conventional-commit type)
-#   scope: short area name, e.g. api, auth, cli               (it becomes the conventional-commit scope)
-#   -p: 1 (urgent) .. 4 (someday)
-```
-It prints the item id (e.g. `004`); use the number below.
-
-## 3. Write the spec
-```sh
-factory write spec 4 <<'EOF'
+factory import - --ready <<'EOF'
+title: Add rate limiting to the public API
+kind: feat
+scope: api
+prio: 2
+=== spec
 ## Problem
 <who is affected, what's wrong today: 2-4 sentences>
-
 ## Acceptance criteria
-- **AC1**: <observable, testable behavior: "GET /x with an expired token returns 401">
-- **AC2**: ...
-
+- **AC1**: GET /x past 100 requests/minute returns 429
+- **AC2**: 429 responses carry Retry-After
 ## Out of scope
 - ...
-
-## Constraints
-- ...
-
 ## Assumptions
 - ...
-EOF
-```
-Every AC must be checkable by an automated test. Use `**ACn**:` exactly; the CLI parses it.
-
-## 4. Split into tasks
-Each task is one builder session: ≤150 changed lines on the opencode backend, ≤400 on claude (see `factory internal config` → effective budget), one coherent change, leaving the repo green.
-```sh
-factory task-add 4 "Add token-bucket limiter in src/api/middleware/ratelimit.ts" --covers AC1
-factory task-add 4 "Return Retry-After on 429 responses" --covers AC2 --deps T1
-```
-- Every AC must be covered by at least one task. Order risky work first. Use `--deps` for real dependencies only.
-- **Quick mode:** make each title a strong hint (area, files, the pattern to follow), then skip to step 6.
-
-## 5. Full plan: write every packet
-Research the codebase narrowly (search for symbols, read the relevant windows), then write one packet per task:
-```sh
-factory internal template task     # the section skeleton
-factory write task 4 T1 <<'EOF'
+=== T1: Add token-bucket limiter in src/api/middleware/ratelimit.ts [covers AC1]
 ## Goal
 ...
 ## Read first (only these; use the line ranges)
 - `src/api/middleware/auth.ts:10-64`: middleware shape to copy
-- `src/api/middleware/auth.test.ts:1-50`: test style to copy
 ## Do
 - ...
 ## Verify
 - Add test `rejects the 101st request within a minute` in `src/api/middleware/ratelimit.test.ts`
-- `factory test src/api/middleware/ratelimit.test.ts` must pass, then the full gate
 ## Constraints
-- Expected size: ~80 lines across 2 files
-- Don't touch: ...
-## Out of scope
-- ...
+- ~80 lines across 2 files; don't touch: ...
+=== T2: Return Retry-After on 429 responses [covers AC2] [deps T1]
+...
 EOF
 ```
-Packet rules:
-- 120 lines or fewer. Self-contained: assume the reader knows nothing beyond the packet. The ACs it covers are injected automatically.
-- Use exact paths with **line ranges** (`path:A-B`) or a symbol (`path (functionName)`). These refs are tracked; if later merges move or change those lines, `factory stale` flags them.
-- Name the exact test to add and the file it goes in. Name the existing pattern to copy.
-- Spell out out-of-scope items, so the builder doesn't wander.
+- **Header**: `title` (imperative), `kind` feat|fix|chore|refactor|perf|test|docs|build|ci, `scope` (short area), `prio` 1 (urgent)..4. Kind and scope become the conventional commit.
+- **ACs**: each checkable by an automated test. Write `**ACn**:` exactly; the CLI parses it.
+- **Tasks**: one builder session each: ≤150 changed lines on opencode, ≤400 on claude (`factory internal config` → effective budget), one coherent change, repo stays green. Cover every AC, risky work first, `[deps]` only for real dependencies.
+- **Packets** (`factory internal template task` shows the skeleton): ≤120 lines, self-contained (covered ACs are injected). Refs with line ranges (`path:A-B`) or symbols (`path (fn)`); `factory stale` tracks them. Name the exact test to add, its file, the pattern to copy, and what's out of scope.
+  - **opencode**: full detail: line-ranged reads, step-by-step Do.
+  - **claude**: may be lighter: goal, the behaviour the ACs need, key file refs, the test to add, constraints.
+- **Quick mode:** task blocks with no body, titles written as strong hints (area, files, pattern). The overseer writes the packets.
 
-## 6. Check and queue
+## 3. Check
 ```sh
-factory cat plan 4     # task list, AC coverage, every packet: read it like the builder would
-factory ready 4        # validates: spec has ACs, every AC covered, at least one task
+factory cat plan <id>  # task list, AC coverage, every packet: read it like the builder would
 ```
-Fix anything `ready` complains about. Then tell the user it's queued, and that `factory run` builds it.
+If `--ready` complained, the item still exists: fix it with `write spec|task <id> ...` or `task-add`, then `factory ready <id>`. Tell the user it's queued and that `factory run` builds it.
 
 ## Bugs
 1. **Investigate before writing.** You have the context budget; the builder doesn't. Reproduce the bug mentally from the report, then search the code (`rg`, read the relevant windows) until you can name the likely cause with `path:A-B` refs.

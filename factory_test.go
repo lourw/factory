@@ -50,6 +50,25 @@ func TestInitInstructionsSingleSourced(t *testing.T) {
 	}
 }
 
+func TestSkillPlansWithImport(t *testing.T) {
+	if commands["import"].group != "skill" {
+		t.Fatal("`factory help skill` does not list import")
+	}
+	b, err := opencodeFS.ReadFile("skills/factory-feature/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{"factory import - --ready", "=== spec", "=== T1:", "factory cat plan", "**claude**: may be lighter"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("SKILL.md missing %q", want)
+		}
+	}
+	if strings.Contains(s, "factory task-add 4") {
+		t.Fatal("SKILL.md full-plan flow still uses separate task-add calls")
+	}
+}
+
 func TestSetupHintsMentionBothRoutes(t *testing.T) {
 	for _, want := range []string{"factory-feature skill", "/factory-init"} {
 		if !strings.Contains(commands["init"].usage, want) {

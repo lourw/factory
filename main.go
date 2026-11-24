@@ -145,6 +145,7 @@ var commands = map[string]command{
 	"write":    {cmdWrite, []string{"append"}, "skill", "write <kind> [item] [task] [--append] <<'EOF': save a doc (spec task report verify merge-msg notes map lessons)"},
 	"task-add": {cmdTaskAdd, []string{"body", "force"}, "skill", "task-add <item> <title...> [--covers AC1,AC2] [--deps T1] [--body (packet on stdin)]"},
 	"cat":      {cmdCat, []string{"raw"}, "skill", "cat <kind> [item] [task] [--raw]: print a doc with its header (plan = tasks + coverage + packets)"},
+	"import":   {cmdImport, []string{"ready"}, "skill", "import [file|-] [--ready]: create an item with spec, tasks and packets from one file"},
 	"ready":    {cmdReady, []string{"force"}, "skill", "ready <item>: validate (ACs, coverage, regression AC for fixes) and queue for `factory run`"},
 	"stale":    {cmdStale, []string{"all"}, "skill", "stale [item] [-a]: packet refs changed by merged work (shifted ones are auto-fixed)"},
 	"edit":     {cmdEdit, nil, "skill", "edit <kind> [item] [task]: edit a doc in $EDITOR (human escape hatch)"},
