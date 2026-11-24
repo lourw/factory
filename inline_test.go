@@ -57,3 +57,30 @@ func TestInlineRefs(t *testing.T) {
 		t.Fatal("nothing resolves: want empty")
 	}
 }
+
+func TestCodeSectionDedupe(t *testing.T) {
+	dir := t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+	}
+	var src strings.Builder
+	for i := 1; i <= 40; i++ {
+		fmt.Fprintf(&src, "line %d\n", i)
+	}
+	os.WriteFile(filepath.Join(dir, "y.go"), []byte(src.String()), 0o644)
+	os.WriteFile(filepath.Join(dir, "z.go"), []byte(src.String()), 0o644)
+	exec.Command("git", "-C", dir, "add", "-A").Run()
+	exec.Command("git", "-C", dir, "commit", "-qm", "init").Run()
+
+	packet := "## Read first\n- `y.go:5-15`: a\n- `z.go:1-2`: z\n- `y.go:10-20`: b\n- `y.go:21-22`: adjacent\n- `y.go:30-31`: apart\n"
+	code := codeSection(dir, packet, 400)
+	if n := strings.Count(code, "line 12\n"); n != 1 {
+		t.Fatalf("line 12 inlined %d times:\n%s", n, code)
+	}
+	a, b, c := strings.Index(code, "`y.go:5-22`"), strings.Index(code, "`y.go:30-31`"), strings.Index(code, "`z.go:1-2`")
+	if a < 0 || b < 0 || c < 0 || a > b || b > c {
+		t.Fatalf("want y.go:5-22, y.go:30-31, z.go:1-2 in order:\n%s", code)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -91,20 +92,43 @@ func codeSection(dir, packet string, budget int) string {
 	if !dirExists(dir) {
 		return ""
 	}
-	var out, skipped []string
-	left := budget
+	// Collect resolved ranges per path (first-seen path order), merging
+	// overlapping or adjacent ranges so each line is inlined at most once.
+	var paths []string
+	ranges := map[string][][2]int{}
 	for _, r := range parseRefs(packet) {
 		s, e, ok := resolveRef(dir, r)
 		if !ok {
 			continue
 		}
-		ref := fmt.Sprintf("%s:%d-%d", r.Path, s, e)
-		if n := e - s + 1; n <= left {
-			left -= n
-			body := strings.Join(headLines(dir, r.Path)[s-1:e], "\n")
-			out = append(out, fmt.Sprintf("`%s`\n```\n%s\n```", ref, body))
-		} else {
-			skipped = append(skipped, "- "+ref+" (not inlined)")
+		if _, seen := ranges[r.Path]; !seen {
+			paths = append(paths, r.Path)
+		}
+		ranges[r.Path] = append(ranges[r.Path], [2]int{s, e})
+	}
+	var out, skipped []string
+	left := budget
+	for _, p := range paths {
+		rs := ranges[p]
+		sort.Slice(rs, func(i, j int) bool { return rs[i][0] < rs[j][0] })
+		merged := rs[:1]
+		for _, r := range rs[1:] {
+			if last := &merged[len(merged)-1]; r[0] <= last[1]+1 {
+				last[1] = max(last[1], r[1])
+			} else {
+				merged = append(merged, r)
+			}
+		}
+		for _, r := range merged {
+			s, e := r[0], r[1]
+			ref := fmt.Sprintf("%s:%d-%d", p, s, e)
+			if n := e - s + 1; n <= left {
+				left -= n
+				body := strings.Join(headLines(dir, p)[s-1:e], "\n")
+				out = append(out, fmt.Sprintf("`%s`\n```\n%s\n```", ref, body))
+			} else {
+				skipped = append(skipped, "- "+ref+" (not inlined)")
+			}
 		}
 	}
 	if len(skipped) > 0 {

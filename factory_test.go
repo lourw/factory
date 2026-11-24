@@ -318,6 +318,16 @@ func TestClaudeAllowedTools(t *testing.T) {
 	}
 }
 
+func TestBuilderPromptCodeHint(t *testing.T) {
+	src, err := opencodeFS.ReadFile("agents/factory-builder.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), "## Code") {
+		t.Fatal("builder prompt should say Read-first code is already in the brief's ## Code section")
+	}
+}
+
 func TestSplitFrontmatter(t *testing.T) {
 	src, err := opencodeFS.ReadFile("agents/factory-builder.md")
 	if err != nil {
