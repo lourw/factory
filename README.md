@@ -133,7 +133,8 @@ factory run
 Per-project settings (`factory internal config <key> <value>`) include:
 
 - `post_land`: shell command run in the main checkout after `factory land`, with `FACTORY_LANDED_RANGE=<old>..<new>`; failure only warns.
-- `remote`: remote that `factory land --push` pushes main to (default `origin`).
+- `remote`: remote that `factory land --push` pushes main to (default `origin`), with `--follow-tags`.
+- `tagging`: `semver` tags each squash commit with an annotated `vX.Y.Z` (feat bumps minor, fix/perf bump patch, other kinds aren't tagged), re-points the tags after factory is rebased, and `factory land --push` pushes them. Default `off`.
 
 The main branch is detected as `main`, then `master`, then the current branch, and stored. Override it with `factory run --main <branch>`.
 

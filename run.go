@@ -732,6 +732,7 @@ func (r *runner) syncFactory(it Item) bool {
 	out, ok := gitRun(fw, "rebase", "-q", mb)
 	if ok {
 		r.log("factory: rebased onto %s", mb)
+		r.syncTags(fw)
 		return true
 	}
 	if !rebaseInProgress(fw) {
@@ -752,7 +753,15 @@ func (r *runner) syncFactory(it Item) bool {
 		return false
 	}
 	r.log("factory: rebase conflicts resolved")
+	r.syncTags(fw)
 	return true
+}
+
+// syncTags re-points semver tags after factory's history was rewritten.
+func (r *runner) syncTags(dir string) {
+	if r.s.cfg("tagging", "off") == "semver" {
+		syncTags(r.s, dir, r.log)
+	}
 }
 
 func (r *runner) pauseMerges(reason string) {
@@ -823,6 +832,13 @@ func (r *runner) mergeJob(it Item) {
 		sha, _ := gitRun(fw, "rev-parse", "HEAD")
 		r.s.exec("UPDATE items SET merged_sha=? WHERE id=?", sha, it.ID)
 		r.log("%s squashed into factory: %s %s", tag(it), sha[:8], subject)
+		if r.s.cfg("tagging", "off") == "semver" {
+			if v, err := tagCommit(r.s, fw, it, sha, subject); err != nil {
+				r.log("%s warning: tagging failed: %v", tag(it), err)
+			} else if v != "" {
+				r.log("%s tagged %s", tag(it), v)
+			}
+		}
 	}
 	removeWorktree(r.root, wt)
 	gitRun(r.root, "branch", "-D", branchName(it))

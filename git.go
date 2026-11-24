@@ -316,6 +316,9 @@ func cmdLand(a Args) {
 		nf := git(tmp, "rev-parse", "HEAD")
 		git(s.root, "update-ref", "refs/heads/"+integrationBranch, nf, f)
 		f = nf
+		if s.cfg("tagging", "off") == "semver" {
+			syncTags(s, s.root, func(format string, a ...any) { fmt.Printf(format+"\n", a...) })
+		}
 	}
 	n := git(s.root, "rev-list", "--count", m+".."+f)
 	if mainOut {
@@ -340,7 +343,7 @@ func cmdLand(a Args) {
 	}
 	if a.Bools["push"] {
 		remote := s.cfg("remote", "origin")
-		if out, ok := gitRun(s.root, "push", remote, mb); !ok {
+		if out, ok := gitRun(s.root, "push", "--follow-tags", remote, mb); !ok {
 			die("git push %s %s failed: %s", remote, mb, out)
 		}
 		fmt.Printf("pushed %s to %s\n", mb, remote)
