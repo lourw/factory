@@ -16,6 +16,8 @@ permission:
     "mkdir *": allow
     "git status*": allow
     "git diff*": allow
+    "git rm *": allow
+    "git mv *": allow
   task: deny
   webfetch: deny
   websearch: deny

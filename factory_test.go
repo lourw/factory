@@ -318,6 +318,40 @@ func TestClaudeAllowedTools(t *testing.T) {
 	}
 }
 
+func TestBuilderCanRemoveFiles(t *testing.T) {
+	b, err := opencodeFS.ReadFile("agents/factory-builder.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	front, _ := splitFrontmatter(string(b))
+	got := strings.Join(claudeAllowedTools(front), "\n")
+	for _, want := range []string{"Bash(git rm *)", "Bash(git mv *)"} {
+		if !strings.Contains("\n"+got+"\n", "\n"+want+"\n") {
+			t.Fatalf("builder missing %q: %v", want, got)
+		}
+	}
+}
+
+func TestE2EScriptsCleanUp(t *testing.T) {
+	files, _ := filepath.Glob("test/e2e/*.sh")
+	if len(files) == 0 {
+		t.Fatal("no e2e scripts")
+	}
+	for _, f := range files {
+		if filepath.Base(f) == "stub-agent.sh" {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := string(b)
+		if !strings.Contains(s, `[ -z "${FACTORY_E2E_DIR:-}" ] && trap 'rm -rf "$SP"' EXIT`) {
+			t.Errorf("%s: no EXIT trap removing $SP", f)
+		}
+	}
+}
+
 func TestBuilderPromptCodeHint(t *testing.T) {
 	src, err := opencodeFS.ReadFile("agents/factory-builder.md")
 	if err != nil {

@@ -4,6 +4,7 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SP="${FACTORY_E2E_DIR:-$(mktemp -d)}"
+[ -z "${FACTORY_E2E_DIR:-}" ] && trap 'rm -rf "$SP"' EXIT
 mkdir -p "$SP/bin" && (cd "$HERE/../.." && go build -o "$SP/bin/factory" .) || exit 1
 export XDG_DATA_HOME=$SP/e2er-xdg OPENCODE_CONFIG_DIR=$SP/e2er-oc CLAUDE_CONFIG_DIR=$SP/e2er-claude
 export PATH=$SP/bin:$PATH FACTORY_AGENT_CMD="$HERE/stub-agent.sh {agent} {title} {message}"
