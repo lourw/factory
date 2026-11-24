@@ -436,8 +436,8 @@ func briefVerify(s *Store, it Item, t Task, tests bool) string {
 		fmt.Sprintf("commit: %s | tests: %s\n%s", sh, mode, worktreeLine(s, it)),
 		acBlock(s, it, t.Covers),
 		optSection("Packet (what was asked)", s.getDoc("task", it.ID, t.N)),
-		fmt.Sprintf("## How to inspect\n- `git show --stat %s`, then per file `git show %[1]s -- <path>`\n"+
-			"- surrounding code: `git show %[1]s:<path> | sed -n 'A,Bp'` or a narrow `rg -n`", sh),
+		optSection("Diff", diffSection(featureWorktree(s, it), t.Sha, budgetFor(s).InlineLines)),
+		fmt.Sprintf("## How to inspect\n- surrounding code: `git show %s:<path> | sed -n 'A,Bp'` or a narrow `rg -n`", sh),
 		verify,
 		fmt.Sprintf("## When done\n1. factory write verify %d T%d <<'EOF'\n   ...\n   EOF\n   Sections:\n%s\n"+
 			"2. End your reply with exactly:\n   VERDICT: PASS | FAIL\n   TASK: T%d\n   BLOCKING: <count>\n   TOP: <most important finding, or none>",

@@ -84,3 +84,44 @@ func TestCodeSectionDedupe(t *testing.T) {
 		t.Fatalf("want y.go:5-22, y.go:30-31, z.go:1-2 in order:\n%s", code)
 	}
 }
+
+func TestDiffSection(t *testing.T) {
+	dir := t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+	}
+	os.WriteFile(filepath.Join(dir, "a.go"), []byte("package a\n\nfunc A() {}\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "b.go"), []byte("package b\n\nfunc B() {}\nfunc C() {}\n"), 0o644)
+	exec.Command("git", "-C", dir, "add", "-A").Run()
+	exec.Command("git", "-C", dir, "commit", "-qm", "two").Run()
+	sha, _ := gitOut(dir, "rev-parse", "HEAD")
+
+	full := diffSection(dir, sha, 400)
+	for _, want := range []string{"diff --git a/a.go b/a.go", "+func A() {}", "diff --git a/b.go b/b.go", "+func C() {}", "```diff"} {
+		if !strings.Contains(full, want) {
+			t.Fatalf("missing %q in:\n%s", want, full)
+		}
+	}
+	if strings.Contains(full, "not inlined") {
+		t.Fatalf("unexpected skip:\n%s", full)
+	}
+	small := diffSection(dir, sha, 10)
+	if !strings.Contains(small, "+func A() {}") || strings.Contains(small, "+func C() {}") || !strings.Contains(small, "- b.go (+4/-0, not inlined)") {
+		t.Fatalf("tiny budget:\n%s", small)
+	}
+	if diffSection(filepath.Join(dir, "nope"), sha, 400) != "" {
+		t.Fatal("missing dir: want empty")
+	}
+}
+
+func TestVerifierPromptDiffHint(t *testing.T) {
+	b, err := opencodeFS.ReadFile("agents/factory-verifier.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "`## Diff`") {
+		t.Fatal("verifier prompt lacks the ## Diff hint")
+	}
+}

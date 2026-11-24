@@ -136,3 +136,47 @@ func codeSection(dir, packet string, budget int) string {
 	}
 	return strings.Join(out, "\n\n")
 }
+
+// diffSection inlines the commit's patch, whole files in diff order, up to budget lines;
+// files that don't fit are listed with their numstat counts.
+func diffSection(dir, sha string, budget int) string {
+	if !dirExists(dir) {
+		return ""
+	}
+	patch, err := gitOut(dir, "show", "--format=", "--patch", sha)
+	if err != nil || patch == "" {
+		return ""
+	}
+	stat, _ := gitOut(dir, "show", "--format=", "--numstat", sha)
+	stats := strings.Split(stat, "\n")
+	var chunks []string
+	for _, part := range strings.Split("\n"+patch, "\ndiff --git ")[1:] {
+		chunks = append(chunks, "diff --git "+strings.TrimRight(part, "\n"))
+	}
+	var in, skipped []string
+	left := budget
+	for i, c := range chunks {
+		if n := strings.Count(c, "\n") + 1; n <= left {
+			left -= n
+			in = append(in, c)
+			continue
+		}
+		label := strings.Fields(strings.SplitN(c, "\n", 2)[0])
+		path := strings.TrimPrefix(label[len(label)-1], "b/")
+		counts := "?/?"
+		if i < len(stats) {
+			if f := strings.SplitN(stats[i], "\t", 3); len(f) == 3 {
+				path, counts = f[2], f[0]+"/-"+f[1]
+			}
+		}
+		skipped = append(skipped, fmt.Sprintf("- %s (+%s, not inlined)", path, counts))
+	}
+	var out []string
+	if len(in) > 0 {
+		out = append(out, "```diff\n"+strings.Join(in, "\n")+"\n```")
+	}
+	if len(skipped) > 0 {
+		out = append(out, strings.Join(skipped, "\n"))
+	}
+	return strings.Join(out, "\n\n")
+}
