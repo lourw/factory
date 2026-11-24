@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -364,5 +365,37 @@ func TestAgentCmdTemplate(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(dir, "factory-builder.prompt.md"))
 	if err != nil || strings.HasPrefix(string(body), "---") || len(body) == 0 {
 		t.Fatalf("prompt body: %v\n%.200s", err, body)
+	}
+}
+
+func TestAgentCmdTemplateConcurrent(t *testing.T) {
+	s := newTestStore(t)
+	t.Setenv("OPENCODE_CONFIG_DIR", t.TempDir()) // use the embedded agent files
+	t.Setenv("FACTORY_AGENT_CMD", "")
+	r := &runner{s: s, root: s.root, backend: "claude"}
+	dir := filepath.Join(s.root, ".factory", "agents")
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := r.agentCmdTemplate("factory-builder"); err != nil {
+				t.Errorf("agentCmdTemplate: %v", err)
+				return
+			}
+			b, err := os.ReadFile(filepath.Join(dir, "factory-builder.settings.json"))
+			var v any
+			if err != nil || json.Unmarshal(b, &v) != nil {
+				t.Errorf("settings torn: %v %q", err, b)
+			}
+			body, err := os.ReadFile(filepath.Join(dir, "factory-builder.prompt.md"))
+			if err != nil || len(body) == 0 {
+				t.Errorf("prompt empty: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if left, _ := filepath.Glob(filepath.Join(dir, "*.tmp")); len(left) != 0 {
+		t.Fatalf("temp files left: %v", left)
 	}
 }

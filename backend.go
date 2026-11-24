@@ -27,7 +27,7 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 		return "", err
 	}
 	promptPath := filepath.Join(dir, name+".prompt.md")
-	if err := os.WriteFile(promptPath, []byte(body), 0o644); err != nil {
+	if err := writeFileAtomic(promptPath, []byte(body)); err != nil {
 		return "", err
 	}
 	settings := map[string]any{"permissions": map[string]any{"allow": claudeAllowedTools(front)}}
@@ -36,12 +36,36 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 		return "", err
 	}
 	settingsPath := filepath.Join(dir, name+".settings.json")
-	if err := os.WriteFile(settingsPath, append(js, '\n'), 0o644); err != nil {
+	if err := writeFileAtomic(settingsPath, append(js, '\n')); err != nil {
 		return "", err
 	}
 	return "claude -p --model " + shellQuote(r.s.cfg("claude_model", "opus")) +
 		" --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
 		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) + " {message}", nil
+}
+
+// writeFileAtomic writes data to a temp file beside path and renames it over
+// path, so concurrent readers never see a partially written file.
+func writeFileAtomic(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp, 0o644)
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+	}
+	return err
 }
 
 // agentSource returns the opencode agent file for name, preferring the installed
