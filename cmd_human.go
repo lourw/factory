@@ -211,6 +211,59 @@ func cmdShow(a Args) {
 	showItem(s, it, a.intFlag("events", 8))
 }
 
+// ---------------------------------------------------------------- review
+
+// cmdReview summarizes each unlanded factory commit (main..factory) that carries a Factory-Item trailer.
+func cmdReview(a Args) {
+	s := cur()
+	if !branchExists(s.root, integrationBranch) {
+		fmt.Println("no unlanded commits (no `factory` branch yet)")
+		return
+	}
+	out := git(s.root, "log", "--format=%H%x00%s%x00%b%x01", mainBranch(s)+".."+integrationBranch)
+	n, total := 0, 0.0
+	for _, rec := range strings.Split(out, "\x01") {
+		parts := strings.SplitN(strings.TrimSpace(rec), "\x00", 3)
+		if len(parts) < 3 {
+			continue
+		}
+		id := ""
+		for _, l := range strings.Split(parts[2], "\n") {
+			if v, ok := strings.CutPrefix(strings.TrimSpace(l), "Factory-Item:"); ok {
+				id = strings.TrimSpace(v)
+			}
+		}
+		if id == "" {
+			continue
+		}
+		it := s.item(id)
+		fmt.Println(reviewLine(s, it, parts[0]))
+		if st, err := gitOut(s.root, "show", "--shortstat", "--format=", parts[0]); err == nil && st != "" {
+			fmt.Println("  " + st)
+		}
+		_, c, _ := itemUsage(s, it.ID, 0)
+		n, total = n+1, total+c
+	}
+	if n == 0 {
+		fmt.Println("no unlanded commits")
+		return
+	}
+	fmt.Printf("total: %d item(s), $%.2f\n", n, total)
+}
+
+// reviewLine formats one unlanded item: commit, subject, id, ACs, tasks/fix rounds, agent runs + cost.
+func reviewLine(s *Store, it Item, sha string) string {
+	ts := s.tasks(it)
+	fixes := 0
+	for _, t := range ts {
+		fixes += t.Fixes
+	}
+	runs, cost, _ := itemUsage(s, it.ID, 0)
+	return fmt.Sprintf("%s %s: %s [%s] | %d ACs | %d tasks, %d fix rounds | %d runs $%.2f",
+		sha[:min(8, len(sha))], kindScope(it), it.Title, fid(it.ID), len(parseACs(s.getDoc("spec", it.ID, 0))),
+		len(ts), fixes, runs, cost)
+}
+
 // ---------------------------------------------------------------- set
 
 func cmdSet(a Args) {

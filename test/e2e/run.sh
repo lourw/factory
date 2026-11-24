@@ -109,7 +109,7 @@ printf '## Acceptance criteria\n- **AC1**: a regression test reproduces the bug 
 assert "ready accepts fix with regression AC" "factory ready $bid >/dev/null"
 factory set $bid --status dropped >/dev/null; factory set $((bid+1)) --status dropped >/dev/null
 assert "board --kind filters" "factory board --kind chore | grep -q FAILVERIFY && ! factory board --kind feat | grep -q FAILVERIFY"
-assert "help shows only the 7 human commands" '[ "$(factory --help | grep -cE "^  [a-z]")" = 7 ]'
+assert "help shows only the 8 human commands" '[ "$(factory --help | grep -cE "^  [a-z]")" = 8 ]'
 assert "old names removed" "! factory gc 2>/dev/null && ! factory gate-set x y 2>/dev/null && ! factory template spec 2>/dev/null && ! factory ls 2>/dev/null"
 assert "internal dispatch works" "factory internal template task | grep -q '## Goal'"
 assert "show --md exports" "factory show $A --md | grep -q '^## feat(core): SHARED one'"

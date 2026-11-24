@@ -801,8 +801,20 @@ func (r *runner) mergeJob(it Item) {
 	r.s.exec("UPDATE items SET slot=0 WHERE id=?", it.ID)
 	r.s.setStatus(r.reload(it), "merged", "")
 	r.mu.Lock()
-	r.merged = append(r.merged, fmt.Sprintf("%s %s: %s", fid(it.ID), kindScope(it), it.Title))
+	_, cost, mins := itemUsage(r.s, it.ID, now())
+	r.merged = append(r.merged, fmt.Sprintf("%s %s: %s | %.0fm $%.2f", fid(it.ID), kindScope(it), it.Title, mins, cost))
 	r.mu.Unlock()
+}
+
+// itemUsage sums an item's agent runs: count, cost, and wall minutes from the first run's start to end.
+func itemUsage(s *Store, itemID int, end float64) (int, float64, float64) {
+	var runs int
+	var cost, start float64
+	if s.db.QueryRow("SELECT count(*), COALESCE(sum(cost_usd),0), COALESCE(min(ts-secs),0) FROM agent_runs WHERE item_id=?", itemID).
+		Scan(&runs, &cost, &start) != nil || runs == 0 {
+		return 0, 0, 0
+	}
+	return runs, cost, max(0, end-start) / 60
 }
 
 func (r *runner) mergeMessage(it Item) (string, string) {

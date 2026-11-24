@@ -133,13 +133,14 @@ type command struct {
 
 var commands = map[string]command{
 	// human
-	"init":  {cmdInit, nil, "human", "init: set up .factory/ in this repo (then the factory-feature skill's init mode, or /factory-init in opencode)"},
-	"board": {cmdBoard, []string{"all", "done", "flat"}, "human", "board [-a] [--flat] [--done] [--kind k]: health summary + features by status with their next step"},
-	"show":  {cmdShow, []string{"md"}, "human", "show <item> [--md] [-n events]: one feature: tasks, worktree, events (--md: summary for a PR)"},
-	"run":   {cmdRun, []string{"dry-run"}, "human", "run [--slots 3] [--features 2] [--stale refresh|hold] [--backend opencode|claude] [--main b] [--dry-run]: build ready features until the queue is empty"},
-	"land":  {cmdLand, []string{"push"}, "human", "land [--push]: fast-forward main to factory (rebases + gates first if main diverged), run post_land, then push main to `remote` if --push"},
-	"set":   {cmdSet, nil, "human", "set <item> [-p 1-4] [--title t] [--kind k] [--scope s] [--status s]: edit a feature (parked → --status ready resumes it)"},
-	"clean": {cmdClean, []string{"parked"}, "human", "clean [--parked]: remove merged/dropped/orphan worktrees and branches, remap shifted packets, report stale ones"},
+	"init":   {cmdInit, nil, "human", "init: set up .factory/ in this repo (then the factory-feature skill's init mode, or /factory-init in opencode)"},
+	"board":  {cmdBoard, []string{"all", "done", "flat"}, "human", "board [-a] [--flat] [--done] [--kind k]: health summary + features by status with their next step"},
+	"show":   {cmdShow, []string{"md"}, "human", "show <item> [--md] [-n events]: one feature: tasks, worktree, events (--md: summary for a PR)"},
+	"run":    {cmdRun, []string{"dry-run"}, "human", "run [--slots 3] [--features 2] [--stale refresh|hold] [--backend opencode|claude] [--main b] [--dry-run]: build ready features until the queue is empty"},
+	"land":   {cmdLand, []string{"push"}, "human", "land [--push]: fast-forward main to factory (rebases + gates first if main diverged), run post_land, then push main to `remote` if --push"},
+	"review": {cmdReview, nil, "human", "review: per unlanded factory commit: subject, item, ACs, tasks/fix rounds, agent runs + cost, shortstat; then a total"},
+	"set":    {cmdSet, nil, "human", "set <item> [-p 1-4] [--title t] [--kind k] [--scope s] [--status s]: edit a feature (parked → --status ready resumes it)"},
+	"clean":  {cmdClean, []string{"parked"}, "human", "clean [--parked]: remove merged/dropped/orphan worktrees and branches, remap shifted packets, report stale ones"},
 	// skill
 	"add":      {cmdAdd, nil, "skill", "add <title...> [--kind feat|fix|chore|refactor|perf|test|docs|build|ci] [--scope s] [-p 1-4] [--slug s]"},
 	"write":    {cmdWrite, []string{"append"}, "skill", "write <kind> [item] [task] [--append] <<'EOF': save a doc (spec task report verify merge-msg notes map lessons)"},
