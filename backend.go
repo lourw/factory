@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -44,8 +46,11 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 	if v := r.s.cfg("claude_max_usd", ""); v != "" {
 		budget = " --max-budget-usd " + shellQuote(v)
 	}
+	if v := claudeEffort(r.s, name); v != "" {
+		budget += " --effort " + shellQuote(v)
+	}
 	return "claude -p --model " + shellQuote(claudeModel(r.s, name)) +
-		" --output-format json --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
+		" --output-format stream-json --verbose --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
 		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) +
 		" --strict-mcp-config --disable-slash-commands --setting-sources project --tools " +
 		shellQuote(claudeToolList(allow)) + budget + " -- {message}", nil
@@ -74,10 +79,123 @@ type agentUsage struct {
 	In, Out, CacheRead, CacheCreate, Turns int
 }
 
-// parseClaudeJSON decodes `claude -p --output-format json` output into the
-// final result text and usage. ok is false when out isn't such a JSON object.
-func parseClaudeJSON(out string) (text string, u agentUsage, ok bool) {
+// toolCall is one tool_use from a claude stream: tool name and a short summary.
+type toolCall struct{ Name, Summary string }
+
+// parseClaudeJSON decodes `claude -p` json or stream-json output into the
+// final result text, usage and (stream only) tool calls. ok is false when out
+// is not claude JSON. A stream without a usable result (error or killed run)
+// yields the last assistant text plus the result subtype, never the raw stream.
+func parseClaudeJSON(out string) (text string, u agentUsage, calls []toolCall, ok bool) {
 	out = strings.TrimSpace(out)
+	if !strings.Contains(out, "\n") {
+		text, u, ok = parseClaudeResult(out)
+		return text, u, nil, ok
+	}
+	last, lastText, subtype, seen := "", "", "", false
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		var ev struct {
+			Type    string `json:"type"`
+			Subtype string `json:"subtype"`
+			Message struct {
+				Content []struct {
+					Type  string         `json:"type"`
+					Text  string         `json:"text"`
+					Name  string         `json:"name"`
+					Input map[string]any `json:"input"`
+				} `json:"content"`
+			} `json:"message"`
+		}
+		if !strings.HasPrefix(line, "{") || json.Unmarshal([]byte(line), &ev) != nil || ev.Type == "" {
+			continue
+		}
+		seen = true
+		switch ev.Type {
+		case "result":
+			last, subtype = line, ev.Subtype
+		case "assistant":
+			for _, c := range ev.Message.Content {
+				switch c.Type {
+				case "tool_use":
+					calls = append(calls, toolCall{c.Name, toolSummary(c.Input)})
+				case "text":
+					if strings.TrimSpace(c.Text) != "" {
+						lastText = c.Text
+					}
+				}
+			}
+		}
+	}
+	if !seen {
+		text, u, ok = parseClaudeResult(out)
+		return text, u, nil, ok
+	}
+	if last != "" {
+		if text, u, ok = parseClaudeResult(last); ok {
+			return text, u, calls, true
+		}
+	}
+	text = lastText
+	if subtype != "" {
+		text = strings.TrimSpace(text + "\n[result: " + subtype + "]")
+	}
+	return text, u, calls, true
+}
+
+// formatTools is the job log's "--- tools ---" section; "" when no calls.
+func formatTools(calls []toolCall) string {
+	if len(calls) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n--- tools ---\n")
+	for i, c := range calls {
+		fmt.Fprintf(&b, "%d. %s %s\n", i+1, c.Name, c.Summary)
+	}
+	return b.String()
+}
+
+// toolSummary is the salient input of a tool call (command, file_path or
+// pattern), single-lined and capped at 100 chars.
+func toolSummary(in map[string]any) string {
+	for _, k := range []string{"command", "file_path", "pattern"} {
+		if s, ok := in[k].(string); ok {
+			s = strings.Join(strings.Fields(s), " ")
+			if r := []rune(s); len(r) > 100 {
+				s = string(r[:100])
+			}
+			return s
+		}
+	}
+	return ""
+}
+
+// toolCounts summarizes calls as "Bash:9 Read:5", by count desc then name.
+func toolCounts(calls []toolCall) string {
+	n := map[string]int{}
+	for _, c := range calls {
+		n[c.Name]++
+	}
+	names := make([]string, 0, len(n))
+	for k := range n {
+		names = append(names, k)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if n[names[i]] != n[names[j]] {
+			return n[names[i]] > n[names[j]]
+		}
+		return names[i] < names[j]
+	})
+	parts := make([]string, len(names))
+	for i, k := range names {
+		parts[i] = fmt.Sprintf("%s:%d", k, n[k])
+	}
+	return strings.Join(parts, " ")
+}
+
+// parseClaudeResult decodes one `{"result":...}` object into text and usage.
+func parseClaudeResult(out string) (text string, u agentUsage, ok bool) {
 	if !strings.HasPrefix(out, "{") {
 		return "", u, false
 	}
@@ -92,11 +210,15 @@ func parseClaudeJSON(out string) (text string, u agentUsage, ok bool) {
 			CacheCreate int `json:"cache_creation_input_tokens"`
 		} `json:"usage"`
 	}
-	if err := json.Unmarshal([]byte(out), &v); err != nil || v.Result == nil {
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
 		return "", u, false
 	}
-	return *v.Result, agentUsage{Cost: v.Cost, In: v.Usage.In, Out: v.Usage.Out,
-		CacheRead: v.Usage.CacheRead, CacheCreate: v.Usage.CacheCreate, Turns: v.Turns}, true
+	u = agentUsage{Cost: v.Cost, In: v.Usage.In, Out: v.Usage.Out,
+		CacheRead: v.Usage.CacheRead, CacheCreate: v.Usage.CacheCreate, Turns: v.Turns}
+	if v.Result == nil {
+		return "", u, false
+	}
+	return *v.Result, u, true
 }
 
 // claudeModel is the claude model for an agent: claude_model_<role> if set,
@@ -106,6 +228,15 @@ func claudeModel(s *Store, agent string) string {
 		return m
 	}
 	return s.cfg("claude_model", "opus")
+}
+
+// claudeEffort is the --effort level for an agent: claude_effort_<role> if
+// set, else claude_effort, else "" (flag not passed).
+func claudeEffort(s *Store, agent string) string {
+	if v := s.cfg("claude_effort_"+strings.TrimPrefix(agent, "factory-"), ""); v != "" {
+		return v
+	}
+	return s.cfg("claude_effort", "")
 }
 
 // writeFileAtomic writes data to a temp file beside path and renames it over

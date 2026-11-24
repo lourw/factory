@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -352,20 +353,71 @@ func cmdStats(a Args) {
 	}
 }
 
+// topTools formats the n most-called tools as "Bash 9.0/run, Read 5.0/run".
+func topTools(counts map[string]int, runs, n int) string {
+	if runs == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(counts))
+	for k := range counts {
+		names = append(names, k)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if counts[names[i]] != counts[names[j]] {
+			return counts[names[i]] > counts[names[j]]
+		}
+		return names[i] < names[j]
+	})
+	if len(names) > n {
+		names = names[:n]
+	}
+	parts := make([]string, len(names))
+	for i, k := range names {
+		parts[i] = fmt.Sprintf("%s %.1f/run", k, float64(counts[k])/float64(runs))
+	}
+	return strings.Join(parts, ", ")
+}
+
 // printAgentStats prints per-agent cost/token/duration lines and the cost per
 // merged item; nothing when no agent runs are recorded.
 func printAgentStats(s *Store) {
 	rows, err := s.db.Query(`SELECT agent, count(*), sum(cost_usd), avg(secs),
 		avg(input_tokens+cache_read+cache_creation), avg(output_tokens) FROM agent_runs GROUP BY agent ORDER BY agent`)
 	check(err)
+	type agentLine struct{ agent, line string }
+	var lines []agentLine
+	tools := map[string]map[string]int{}
+	runs := map[string]int{}
 	for rows.Next() {
 		var agent string
 		var cnt int
 		var cost, secs, in, out float64
 		check(rows.Scan(&agent, &cnt, &cost, &secs, &in, &out))
-		fmt.Printf("agent %-16s runs=%d cost=$%.2f avg=%.0fs in=%.0fk out=%.1fk\n", agent, cnt, cost, secs, in/1000, out/1000)
+		lines = append(lines, agentLine{agent, fmt.Sprintf("agent %-16s runs=%d cost=$%.2f avg=%.0fs in=%.0fk out=%.1fk", agent, cnt, cost, secs, in/1000, out/1000)})
+		runs[agent] = cnt
 	}
 	rows.Close()
+	rows, err = s.db.Query(`SELECT agent, COALESCE(tools,'') FROM agent_runs`)
+	check(err)
+	for rows.Next() {
+		var agent, ts string
+		check(rows.Scan(&agent, &ts))
+		for _, p := range strings.Fields(ts) {
+			name, n, _ := strings.Cut(p, ":")
+			c, _ := strconv.Atoi(n)
+			if tools[agent] == nil {
+				tools[agent] = map[string]int{}
+			}
+			tools[agent][name] += c
+		}
+	}
+	rows.Close()
+	for _, l := range lines {
+		fmt.Println(l.line)
+		if t := topTools(tools[l.agent], runs[l.agent], 3); t != "" {
+			fmt.Println("  tools: " + t)
+		}
+	}
 	rows, err = s.db.Query(`SELECT sum(r.cost_usd) FROM agent_runs r JOIN items i ON i.id=r.item_id
 		WHERE i.status='merged' GROUP BY r.item_id`)
 	check(err)

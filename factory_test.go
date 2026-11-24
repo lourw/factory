@@ -101,35 +101,113 @@ func TestE2EScriptsExitOnFailure(t *testing.T) {
 
 func TestParseClaudeJSON(t *testing.T) {
 	js := `{"result":"hi\nSTATUS: done","total_cost_usd":0.5,"num_turns":3,"usage":{"input_tokens":2,"output_tokens":11,"cache_read_input_tokens":100,"cache_creation_input_tokens":50}}`
-	text, u, ok := parseClaudeJSON("\n" + js + "\n")
+	text, u, calls, ok := parseClaudeJSON("\n" + js + "\n")
 	if !ok || !strings.Contains(text, "STATUS: done") {
 		t.Fatalf("parse: ok=%v text=%q", ok, text)
 	}
 	if want := (agentUsage{Cost: 0.5, In: 2, Out: 11, CacheRead: 100, CacheCreate: 50, Turns: 3}); u != want {
 		t.Fatalf("usage: %+v want %+v", u, want)
 	}
-	if _, _, ok := parseClaudeJSON("STATUS: done"); ok {
+	if len(calls) != 0 {
+		t.Fatalf("single JSON calls: %+v", calls)
+	}
+	if _, _, _, ok := parseClaudeJSON("STATUS: done"); ok {
 		t.Fatal("plain text parsed as JSON")
 	}
-	if _, _, ok := parseClaudeJSON(`{"foo":1}`); ok {
+	if _, _, _, ok := parseClaudeJSON(`{"foo":1}`); ok {
 		t.Fatal("JSON without result accepted")
+	}
+}
+
+func TestParseClaudeStream(t *testing.T) {
+	stream := `{"type":"system","subtype":"init"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"ok"},{"type":"tool_use","name":"Bash","input":{"command":"factory brief build 1 T1"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"x.go"}}]}}
+{"type":"result","result":"STATUS: done","total_cost_usd":0.5,"num_turns":3,"usage":{"input_tokens":2,"output_tokens":11}}
+`
+	text, u, calls, ok := parseClaudeJSON(stream)
+	if !ok || text != "STATUS: done" || u.Cost != 0.5 || u.Turns != 3 || u.Out != 11 {
+		t.Fatalf("parse: ok=%v text=%q u=%+v", ok, text, u)
+	}
+	want := []toolCall{{"Bash", "factory brief build 1 T1"}, {"Read", "x.go"}}
+	if len(calls) != 2 || calls[0] != want[0] || calls[1] != want[1] {
+		t.Fatalf("calls: %+v", calls)
+	}
+	if got := toolCounts([]toolCall{{"Read", ""}, {"Bash", ""}, {"Edit", ""}, {"Bash", ""}}); got != "Bash:2 Edit:1 Read:1" {
+		t.Fatalf("counts: %q", got)
+	}
+	if got := formatTools(want); got != "\n--- tools ---\n1. Bash factory brief build 1 T1\n2. Read x.go\n" {
+		t.Fatalf("tools log: %q", got)
+	}
+	if formatTools(nil) != "" {
+		t.Fatal("empty calls should log nothing")
+	}
+}
+
+// An error result (no "result" field) must not leave the raw stream as text:
+// tool_result events can carry whole files into retry notes.
+func TestParseClaudeStreamNoResult(t *testing.T) {
+	big := strings.Repeat("SECRETFILE ", 50)
+	stream := `{"type":"system","subtype":"init"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"working on it"},{"type":"tool_use","name":"Read","input":{"file_path":"x.go"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"` + big + `"}]}}
+{"type":"result","subtype":"error_max_budget_usd","is_error":true,"total_cost_usd":2.5,"num_turns":9}
+`
+	text, u, calls, ok := parseClaudeJSON(stream)
+	if !ok || strings.Contains(text, "SECRETFILE") || strings.Contains(text, `"type"`) {
+		t.Fatalf("raw stream kept: ok=%v text=%q", ok, text)
+	}
+	if !strings.Contains(text, "working on it") || !strings.Contains(text, "error_max_budget_usd") {
+		t.Fatalf("text: %q", text)
+	}
+	if u.Cost != 2.5 || u.Turns != 9 {
+		t.Fatalf("usage: %+v", u)
+	}
+	if len(calls) != 1 || calls[0].Name != "Read" {
+		t.Fatalf("calls: %+v", calls)
+	}
+	// Killed run: no result line at all; calls still returned.
+	killed := strings.Join(strings.Split(stream, "\n")[:3], "\n")
+	text, _, calls, ok = parseClaudeJSON(killed)
+	if !ok || text != "working on it" || len(calls) != 1 {
+		t.Fatalf("killed: ok=%v text=%q calls=%+v", ok, text, calls)
+	}
+	if _, _, _, ok := parseClaudeJSON("line one\nline two"); ok {
+		t.Fatal("plain multi-line text parsed as stream")
+	}
+}
+
+func TestTopTools(t *testing.T) {
+	for _, c := range []struct {
+		counts map[string]int
+		runs   int
+		want   string
+	}{
+		{map[string]int{"Bash": 9, "Read": 5, "Edit": 3, "Grep": 1}, 2, "Bash 4.5/run, Read 2.5/run, Edit 1.5/run"},
+		{map[string]int{"Read": 2, "Bash": 2}, 1, "Bash 2.0/run, Read 2.0/run"},
+		{nil, 3, ""},
+		{map[string]int{"Bash": 1}, 0, ""},
+	} {
+		if got := topTools(c.counts, c.runs, 3); got != c.want {
+			t.Errorf("topTools(%v, %d) = %q want %q", c.counts, c.runs, got, c.want)
+		}
 	}
 }
 
 func TestRecordAgentRun(t *testing.T) {
 	s := newTestStore(t)
 	s.recordAgentRun(6, "build T1", "factory-builder", "opus", 12.5,
-		agentUsage{Cost: 0.25, In: 1, Out: 2, CacheRead: 3, CacheCreate: 4, Turns: 5})
-	var label, model string
+		agentUsage{Cost: 0.25, In: 1, Out: 2, CacheRead: 3, CacheCreate: 4, Turns: 5}, "Bash:2")
+	var label, model, tools string
 	var cost float64
 	var turns, cacheCreate int
-	err := s.db.QueryRow("SELECT label, model, cost_usd, turns, cache_creation FROM agent_runs WHERE item_id=6").
-		Scan(&label, &model, &cost, &turns, &cacheCreate)
+	err := s.db.QueryRow("SELECT label, model, cost_usd, turns, cache_creation, tools FROM agent_runs WHERE item_id=6").
+		Scan(&label, &model, &cost, &turns, &cacheCreate, &tools)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if label != "build T1" || model != "opus" || cost != 0.25 || turns != 5 || cacheCreate != 4 {
-		t.Fatalf("row: %q %q %v %d %d", label, model, cost, turns, cacheCreate)
+	if label != "build T1" || model != "opus" || cost != 0.25 || turns != 5 || cacheCreate != 4 || tools != "Bash:2" {
+		t.Fatalf("row: %q %q %v %d %d %q", label, model, cost, turns, cacheCreate, tools)
 	}
 }
 
@@ -396,7 +474,7 @@ func TestAgentCmdTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"claude -p", "--permission-mode dontAsk", "--no-session-persistence",
-		"--append-system-prompt-file", "--settings", "--output-format json", "{message}"} {
+		"--append-system-prompt-file", "--settings", "--output-format stream-json --verbose", "{message}"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in %q", want, got)
 		}
@@ -428,6 +506,14 @@ func TestAgentCmdTemplate(t *testing.T) {
 	}
 	if v, err := r.agentCmdTemplate("factory-verifier"); err != nil || !strings.Contains(v, "--model "+shellQuote("opus")) {
 		t.Fatalf("verifier fallback: %q %v", v, err)
+	}
+	s.setCfg("claude_effort_builder", "medium")
+	if b, err := r.agentCmdTemplate("factory-builder"); err != nil ||
+		!strings.Contains(b, "--effort "+shellQuote("medium")+" -- {message}") {
+		t.Fatalf("builder effort: %q %v", b, err)
+	}
+	if v, err := r.agentCmdTemplate("factory-verifier"); err != nil || strings.Contains(v, "--effort") {
+		t.Fatalf("verifier effort unset: %q %v", v, err)
 	}
 	dir := filepath.Join(s.root, ".factory", "agents")
 	b, err := os.ReadFile(filepath.Join(dir, "factory-builder.settings.json"))

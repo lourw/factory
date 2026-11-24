@@ -490,18 +490,19 @@ func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out 
 	}
 	secs := time.Since(start).Seconds()
 	text := buf.String()
-	parsed, u, ok := parseClaudeJSON(text)
+	parsed, u, calls, ok := parseClaudeJSON(text)
 	if ok {
 		text = parsed
 		fmt.Fprintf(f, "\n--- result ---\n%s\n", text)
 	}
+	fmt.Fprint(f, formatTools(calls))
 	out = parseReturn(text)
 	out["_tail"] = lastLines(text, 20)
 	model := ""
 	if r.backend == "claude" && os.Getenv("FACTORY_AGENT_CMD") == "" {
 		model = claudeModel(r.s, name)
 	}
-	r.s.recordAgentRun(it.ID, label, name, model, secs, u)
+	r.s.recordAgentRun(it.ID, label, name, model, secs, u, toolCounts(calls))
 	if werr != nil {
 		fmt.Fprintf(f, "\n[exit: %v]\n", werr)
 	}

@@ -332,6 +332,10 @@ func cmdConfig(a Args) {
 	if key == "backend" && val != "opencode" && val != "claude" && val != "-" {
 		die("backend must be opencode or claude")
 	}
+	if strings.HasPrefix(key, "claude_effort") && val != "-" &&
+		val != "low" && val != "medium" && val != "high" && val != "xhigh" && val != "max" {
+		die("%s must be low, medium, high, xhigh or max", key)
+	}
 	if key == "claude_max_usd" && val != "-" {
 		if f, err := strconv.ParseFloat(val, 64); err != nil || !(f > 0) {
 			die("claude_max_usd must be a positive number")

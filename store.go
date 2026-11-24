@@ -174,7 +174,7 @@ func (s *Store) migrate() {
 	for _, c := range [][3]string{
 		{"items", "scope", "TEXT DEFAULT ''"}, {"items", "park_reason", "TEXT DEFAULT ''"}, {"items", "merged_sha", "TEXT DEFAULT ''"},
 		{"items", "slot", "INTEGER DEFAULT 0"}, {"items", "after_ids", "TEXT DEFAULT ''"}, {"items", "filler", "INTEGER DEFAULT 0"},
-		{"tasks", "partial", "INTEGER DEFAULT 0"},
+		{"tasks", "partial", "INTEGER DEFAULT 0"}, {"agent_runs", "tools", "TEXT DEFAULT ''"},
 	} {
 		if !s.hasColumn(c[0], c[1]) {
 			s.exec("ALTER TABLE " + c[0] + " ADD COLUMN " + c[1] + " " + c[2])
@@ -210,18 +210,22 @@ func (s *Store) hasColumn(table, col string) bool {
 
 // configKeys are the per-project settings for `factory internal config`.
 var configKeys = map[string]string{
-	"worktree_root":         "where feature worktrees live (default $XDG_DATA_HOME/factory/worktrees/<project>-<hash>; relative paths are from the repo root)",
-	"cache_dir":             "persistent per-project cache, exposed as {cache} / FACTORY_CACHE (default <repo>/.factory/cache)",
-	"tagging":               "off | semver: annotated vX.Y.Z tags on factory squash commits (default off)",
-	"post_land":             "command run in the main checkout after `factory land` (FACTORY_LANDED_RANGE is set)",
-	"remote":                "remote for `factory land --push` (default origin)",
-	"main_branch":           "the branch factory integrates from and lands to (default main, master, or the current branch)",
-	"backend":               "opencode | claude: which CLI runs agent jobs (default opencode)",
-	"claude_model":          "model for the claude backend (default opus)",
-	"claude_model_overseer": "model for the overseer on the claude backend (default: claude_model)",
-	"claude_model_builder":  "model for the builder on the claude backend (default: claude_model)",
-	"claude_model_verifier": "model for the verifier on the claude backend (default: claude_model)",
-	"claude_max_usd":        "per-job spend cap for the claude backend (claude --max-budget-usd; default none)",
+	"worktree_root":          "where feature worktrees live (default $XDG_DATA_HOME/factory/worktrees/<project>-<hash>; relative paths are from the repo root)",
+	"cache_dir":              "persistent per-project cache, exposed as {cache} / FACTORY_CACHE (default <repo>/.factory/cache)",
+	"tagging":                "off | semver: annotated vX.Y.Z tags on factory squash commits (default off)",
+	"post_land":              "command run in the main checkout after `factory land` (FACTORY_LANDED_RANGE is set)",
+	"remote":                 "remote for `factory land --push` (default origin)",
+	"main_branch":            "the branch factory integrates from and lands to (default main, master, or the current branch)",
+	"backend":                "opencode | claude: which CLI runs agent jobs (default opencode)",
+	"claude_model":           "model for the claude backend (default opus)",
+	"claude_model_overseer":  "model for the overseer on the claude backend (default: claude_model)",
+	"claude_model_builder":   "model for the builder on the claude backend (default: claude_model)",
+	"claude_model_verifier":  "model for the verifier on the claude backend (default: claude_model)",
+	"claude_effort":          "reasoning effort for the claude backend: low | medium | high | xhigh | max (default: not passed)",
+	"claude_effort_overseer": "effort for the overseer on the claude backend (default: claude_effort)",
+	"claude_effort_builder":  "effort for the builder on the claude backend (default: claude_effort)",
+	"claude_effort_verifier": "effort for the verifier on the claude backend (default: claude_effort)",
+	"claude_max_usd":         "per-job spend cap for the claude backend (claude --max-budget-usd; default none)",
 }
 
 func (s *Store) cfg(key, def string) string {
@@ -326,10 +330,11 @@ func (s *Store) event(itemID int, kind, msg string, n int) {
 }
 
 // recordAgentRun stores the duration, cost and token usage of one agent job.
-func (s *Store) recordAgentRun(itemID int, label, agent, model string, secs float64, u agentUsage) {
+// tools is a count summary like "Bash:9 Read:5".
+func (s *Store) recordAgentRun(itemID int, label, agent, model string, secs float64, u agentUsage, tools string) {
 	s.exec(`INSERT INTO agent_runs(ts,item_id,label,agent,model,secs,cost_usd,input_tokens,output_tokens,
-  cache_read,cache_creation,turns) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-		now(), itemID, label, agent, model, secs, u.Cost, u.In, u.Out, u.CacheRead, u.CacheCreate, u.Turns)
+  cache_read,cache_creation,turns,tools) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		now(), itemID, label, agent, model, secs, u.Cost, u.In, u.Out, u.CacheRead, u.CacheCreate, u.Turns, tools)
 }
 
 func (s *Store) setStatus(it Item, status, why string) {
