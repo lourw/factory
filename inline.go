@@ -1,0 +1,114 @@
+package main
+
+import (
+	"fmt"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+// Inlining packet "Read first" code into build briefs, so builders don't spend turns reading.
+
+const symbolBlockMax = 60 // lines for a non-brace (indentation) block
+
+var symIdentRe = regexp.MustCompile(`^[A-Za-z_]\w*$`)
+
+// headLines returns path's lines at dir's HEAD, or nil.
+func headLines(dir, path string) []string {
+	out, err := exec.Command("git", "-C", dir, "show", "HEAD:"+path).Output()
+	if err != nil {
+		return nil
+	}
+	return strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
+}
+
+// resolveRef turns a packet ref into a 1-based line range at dir's HEAD.
+// path:A-B as is; path (symbol) → its definition block; bare path → not ok.
+func resolveRef(dir string, r packetRef) (start, end int, ok bool) {
+	lines := headLines(dir, r.Path)
+	if lines == nil {
+		return 0, 0, false
+	}
+	if r.Start > 0 {
+		end = min(max(r.End, r.Start), len(lines))
+		return r.Start, end, r.Start <= end
+	}
+	if r.Symbol == "" {
+		return 0, 0, false
+	}
+	sym := r.Symbol[strings.LastIndexAny(r.Symbol, ".:")+1:]
+	if !symIdentRe.MatchString(sym) {
+		return 0, 0, false
+	}
+	pat := fmt.Sprintf(`(func|type|def|class|function) %[1]s|func \([^)]*\) %[1]s|%[1]s =`, sym)
+	out, good := gitRun(dir, "grep", "-n", "-w", "-E", pat, "HEAD", "--", r.Path)
+	if !good || out == "" {
+		return 0, 0, false
+	}
+	// HEAD:path:N:text
+	f := strings.SplitN(strings.SplitN(out, "\n", 2)[0], ":", 4)
+	if len(f) < 4 {
+		return 0, 0, false
+	}
+	start, err := strconv.Atoi(f[2])
+	if err != nil || start < 1 || start > len(lines) {
+		return 0, 0, false
+	}
+	return start, blockEnd(lines, start), true
+}
+
+// blockEnd finds the last line of the block defined at 1-based line start.
+func blockEnd(lines []string, start int) int {
+	def := strings.TrimRight(lines[start-1], " \t")
+	if strings.HasSuffix(def, "{") || strings.HasSuffix(def, "(") {
+		for i := start; i < len(lines); i++ {
+			if strings.HasPrefix(lines[i], "}") || strings.HasPrefix(lines[i], ")") {
+				return i + 1
+			}
+		}
+		return min(start+symbolBlockMax-1, len(lines))
+	}
+	ind := indentOf(def)
+	end := start
+	for i := start; i < len(lines) && i < start+symbolBlockMax-1; i++ {
+		if strings.TrimSpace(lines[i]) == "" {
+			continue
+		}
+		if indentOf(lines[i]) <= ind {
+			break
+		}
+		end = i + 1
+	}
+	return end
+}
+
+func indentOf(s string) int { return len(s) - len(strings.TrimLeft(s, " \t")) }
+
+// codeSection inlines the packet's resolvable Read-first refs, up to budget lines total.
+// Refs that don't fit are listed as "(not inlined)". "" when nothing resolves.
+func codeSection(dir, packet string, budget int) string {
+	if !dirExists(dir) {
+		return ""
+	}
+	var out, skipped []string
+	left := budget
+	for _, r := range parseRefs(packet) {
+		s, e, ok := resolveRef(dir, r)
+		if !ok {
+			continue
+		}
+		ref := fmt.Sprintf("%s:%d-%d", r.Path, s, e)
+		if n := e - s + 1; n <= left {
+			left -= n
+			body := strings.Join(headLines(dir, r.Path)[s-1:e], "\n")
+			out = append(out, fmt.Sprintf("`%s`\n```\n%s\n```", ref, body))
+		} else {
+			skipped = append(skipped, "- "+ref+" (not inlined)")
+		}
+	}
+	if len(skipped) > 0 {
+		out = append(out, strings.Join(skipped, "\n"))
+	}
+	return strings.Join(out, "\n\n")
+}

@@ -403,6 +403,7 @@ func briefBuild(s *Store, it Item, t Task, fix bool) string {
 		acBlock(s, it, t.Covers),
 		optSection("Earlier tasks", earlierTasks(s, it, t, budgetFor(s).ReportLines)),
 		section("Packet", packet),
+		optSection("Code", codeSection(featureWorktree(s, it), packet, budgetFor(s).InlineLines)),
 	}
 	if fix {
 		parts = append(parts, section("Findings to fix (address every [blocking] item; add or strengthen a test for each)",
