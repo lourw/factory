@@ -1,4 +1,4 @@
-<!-- Budget: <= 120 lines. Agents read this INSTEAD of exploring. Keep it current via /factory-retro. -->
+<!-- Budget: <= 120 lines. Agents read this INSTEAD of exploring. Keep it current via the factory-feature skill's retro mode. -->
 
 ## Stack
 <language, framework, package manager, monorepo tool>

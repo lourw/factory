@@ -57,9 +57,12 @@ One-time interactive setup: discovers the setup and gate commands and writes the
 - **refresh:** `factory stale`, then `factory brief refresh <id> T<n>` per flagged task, then the packet is rewritten with the same scope.
 - **quick (only on request):** spec plus one-line tasks; the overseer writes the packets during the run.
 - **init:** one-time project setup ("init factory"): follows `factory internal template init`, the same steps as `/factory-init`.
+- **retro:** `factory internal retro`, then only the changed map sections are rewritten (`factory write map`) and 1-3 lessons appended for recurring friction (`factory write lessons --append`).
 
 ### Other command groups
-Skill commands (`add`, `write`, `task-add`, `cat`, `ready`, `stale`, `brief refresh`, `edit`), agent commands (`brief`, `write`, `test`, `gate`) and internal commands (`task-set`, `task-next`, `log`, `template`, `gate config`, `install`, `stats`) are documented by `factory help skill|agent|internal`. Internal commands run as `factory internal <cmd>`; the exception is `gate config`, which is spelled `factory gate config`.
+Skill commands (`add`, `write`, `task-add`, `cat`, `ready`, `stale`, `brief refresh`, `edit`), agent commands (`brief`, `write`, `test`, `gate`) and internal commands (`task-set`, `task-next`, `log`, `template`, `gate config`, `install`, `stats`, `retro`) are documented by `factory help skill|agent|internal`. Internal commands run as `factory internal <cmd>`; the exception is `gate config`, which is spelled `factory gate config`.
+
+`factory internal retro [--since <ts|item>]` prints a short digest of what changed since the code map was last saved: merged items, `git diff --stat` on `factory`, park reasons and blocking verify findings, fix rounds, and the map's size. The skill's retro mode uses it to keep the map and lessons current. When items have merged since the map was saved, `factory board` shows `map stale (N merged since)` in its header.
 
 ## How a run works
 
@@ -149,6 +152,7 @@ cmd_pm.go       init, add, ready, show details
 cmd_task.go     task-add, task-set, task-next, nextRunnable
 cmd_doc.go      cat, write, edit, template, briefs (build verify plan judge resolve)
 cmd_gate.go     gate, gate config, test, setup, stats, export
+cmd_retro.go    retro digest (what changed since the map was saved)
 git.go          worktrees, integration branch, run lock, land, gc
 run.go          the scheduler: jobs, agents, merge sequence, recovery, summary
 stale.go        packet refs, range remapping, stale/refresh

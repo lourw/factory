@@ -102,8 +102,14 @@ func boardHeader(s *Store, items []Item) {
 		run = fmt.Sprintf(" | run active (pid %d)", pid)
 	}
 	fmt.Printf("%s%s\n", integrationLine(s), run)
-	fmt.Printf("install %s | agents %s | gate %s | worktrees %d | stale %d | projects %d\n",
-		installOK(), agentsLabel(s), lastGate(s), worktreeCount(s), stale, len(registry()))
+	mapStale := ""
+	if ts := s.docUpdated("map", 0, 0); ts > 0 {
+		if n := len(s.mergedSince(ts)); n > 0 {
+			mapStale = fmt.Sprintf(" | map stale (%d merged since)", n)
+		}
+	}
+	fmt.Printf("install %s | agents %s | gate %s | worktrees %d | stale %d | projects %d%s\n",
+		installOK(), agentsLabel(s), lastGate(s), worktreeCount(s), stale, len(registry()), mapStale)
 }
 
 // agentsLabel names the effective agent backend for the board header.

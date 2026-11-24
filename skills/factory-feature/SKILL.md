@@ -15,6 +15,7 @@ The builder **reads only its task packet**. Packet quality decides whether a tas
 - **Quick** (only when the user asks for it): spec plus one-line tasks with hints. The overseer writes the packets during `factory run`.
 - **Refresh**: fix packets that went stale because other features merged (see the end of this file).
 - **Init**: one-time setup of a repo for the factory (see "Init mode" at the end).
+- **Retro**: refresh the code map and lessons after merges (see "Retro mode").
 
 Decide feature vs bug from the user's wording ("broken", "crashes", "wrong", "regression" → bug). Ask if it's unclear.
 
@@ -126,3 +127,10 @@ When the user asks to init or set up the factory for this repo:
 1. If `factory board` errors with no factory db (`.factory/` is missing), run `factory init`.
 2. Run `factory internal template init` and follow it exactly.
 3. Finish by telling the user to write features with this skill, then run `factory run`.
+
+## Retro mode (keep the map and lessons current)
+Run it when the user asks for a retro, or when `factory board` shows `map stale (N merged since)`.
+1. `factory internal retro`: what merged since the map was saved (diff stat, park reasons, verify findings, fix rounds, map size).
+2. Rewrite only the map sections the digest shows changed; keep what's still true. Save with `factory write map` (120 lines or fewer).
+3. Add 1-3 lessons only for friction that recurred (same park reason or finding across items): `factory write lessons --append`.
+4. Report what changed in the map and which lessons you added (or that none were needed).

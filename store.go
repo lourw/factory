@@ -462,6 +462,21 @@ func (s *Store) getDoc(kind string, itemID, n int) string {
 	return body
 }
 
+// docUpdated is the doc's last save time (unix secs), or 0 if absent.
+func (s *Store) docUpdated(kind string, itemID, n int) float64 {
+	var ts float64
+	if s.db.QueryRow("SELECT COALESCE(updated,0) FROM docs WHERE item_id=? AND task_n=? AND kind=?", itemID, n, kind).Scan(&ts) != nil {
+		return 0
+	}
+	return ts
+}
+
+// mergedSince lists merged items whose latest merge status event is after ts.
+func (s *Store) mergedSince(ts float64) []Item {
+	return s.items(`WHERE status='merged' AND (SELECT max(ts) FROM events e
+	  WHERE e.item_id=items.id AND e.kind='status' AND e.msg LIKE 'merged%') > ? ORDER BY id`, ts)
+}
+
 func (s *Store) putDoc(kind, body string, itemID, n int) {
 	s.exec(`INSERT INTO docs(item_id,task_n,kind,body,updated) VALUES(?,?,?,?,?)
 	        ON CONFLICT(item_id,task_n,kind) DO UPDATE SET body=excluded.body, updated=excluded.updated`,

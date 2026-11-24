@@ -159,6 +159,7 @@ var commands = map[string]command{
 	"template":  {cmdTemplate, nil, "internal", "template <name>: spec bug task report verify map lessons init"},
 	"install":   {cmdInstall, []string{"uninstall", "force"}, "internal", "install [--link <repo>] [--uninstall] [--force]: opencode agents/commands + skills"},
 	"stats":     {cmdStats, []string{"all"}, "internal", "stats [-a]: lead time, fix rounds, gate pass rates"},
+	"retro":     {cmdRetro, nil, "internal", "retro [--since ts|item]: what changed since the map was written (for the skill's retro mode)"},
 	"config":    {cmdConfig, nil, "internal", "config [key] [value]: per-project settings (worktree_root cache_dir tagging post_land remote main_branch backend claude_model claude_model_overseer claude_model_builder claude_model_verifier claude_effort claude_effort_overseer claude_effort_builder claude_effort_verifier claude_max_usd; '-' unsets)"},
 }
 

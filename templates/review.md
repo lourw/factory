@@ -10,4 +10,4 @@ Diff: <files changed, +/- lines> vs <base sha>
 - [blocking|should-fix|nit] `path:line`: <problem>. Scenario: <...>
 
 ## Process notes
-<friction for /factory-retro: unclear spec, thin packets, blocked tasks, fix rounds>
+<friction for retro: unclear spec, thin packets, blocked tasks, fix rounds>
