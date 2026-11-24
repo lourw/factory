@@ -248,7 +248,7 @@ func verificationBlock(s *Store, it Item, n int) string {
 	}
 	lines = append(lines,
 		fmt.Sprintf("- full gate: `factory gate --item %d --task %d`  (checks: %s)", it.ID, n, checks),
-		"- Output is a compact summary; full logs are in .factory/logs/. Never run raw test/build commands.")
+		"- Output is a compact summary; full logs are in .factory/logs/.")
 	return strings.Join(lines, "\n")
 }
 
@@ -280,6 +280,24 @@ func section(title, body string) string {
 		body = "(none)"
 	}
 	return "## " + title + "\n" + body
+}
+
+// optSection is section() but returns "" for an empty body; joinParts drops it.
+func optSection(title, body string) string {
+	if strings.TrimSpace(body) == "" {
+		return ""
+	}
+	return section(title, body)
+}
+
+func joinParts(parts []string) string {
+	var out []string
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, "\n\n")
 }
 
 var commentRe = regexp.MustCompile(`(?s)<!--.*?-->\n?`)
@@ -332,7 +350,7 @@ func briefBuild(s *Store, it Item, t Task, fix bool) string {
 		fmt.Sprintf("item: %s: %s | mode: %s\n%s\nIf `git status` shows uncommitted changes, they are from an interrupted attempt at this task: keep what's useful, discard the rest.",
 			kindScope(it), it.Title, mode, worktreeLine(s, it)),
 		acBlock(s, it, t.Covers),
-		section("Dependencies (already committed in this worktree)", depLines(s, it, t)),
+		optSection("Dependencies (already committed in this worktree)", depLines(s, it, t)),
 		section("Packet", packet),
 	}
 	if fix {
@@ -340,14 +358,13 @@ func briefBuild(s *Store, it Item, t Task, fix bool) string {
 			s.getDoc("verify", it.ID, t.N)))
 	}
 	parts = append(parts,
-		section("Project lessons", stripComments(s.getDoc("lessons", 0, 0))),
+		optSection("Project lessons", stripComments(s.getDoc("lessons", 0, 0))),
 		verificationBlock(s, it, t.N),
 		fmt.Sprintf("## When done\n1. Save your report (body only; the header is added for you):\n"+
 			"   factory write report %d T%d <<'EOF'\n   ...\n   EOF\n   Report sections:\n%s\n"+
-			"2. Don't commit; the scheduler re-runs the gate and commits.\n"+
-			"3. End your reply with exactly:\n   STATUS: done | blocked | failed\n   TASK: T%d\n   NOTE: <one line>",
+			"2. End your reply with exactly:\n   STATUS: done | blocked | failed\n   TASK: T%d\n   NOTE: <one line>",
 			it.ID, t.N, indent(stripComments(tpl("report")), "   "), t.N))
-	return strings.Join(parts, "\n\n")
+	return joinParts(parts)
 }
 
 func briefVerify(s *Store, it Item, t Task, tests bool) string {
@@ -361,19 +378,19 @@ func briefVerify(s *Store, it Item, t Task, tests bool) string {
 		verify = verificationBlock(s, it, t.N)
 	}
 	sh := short(t.Sha)
-	return strings.Join([]string{
+	return joinParts([]string{
 		fmt.Sprintf("# Verify brief: %s T%d: %s", fid(it.ID), t.N, t.Title),
 		"Budget: " + budgetFor(s).Reading,
 		fmt.Sprintf("commit: %s | tests: %s\n%s", t.Sha, mode, worktreeLine(s, it)),
 		acBlock(s, it, t.Covers),
-		section("Packet (what was asked)", s.getDoc("task", it.ID, t.N)),
+		optSection("Packet (what was asked)", s.getDoc("task", it.ID, t.N)),
 		fmt.Sprintf("## How to inspect\n- `git show --stat %s`, then per file `git show %[1]s -- <path>`\n"+
 			"- surrounding code: `git show %[1]s:<path> | sed -n 'A,Bp'` or a narrow `rg -n`", sh),
 		verify,
 		fmt.Sprintf("## When done\n1. factory write verify %d T%d <<'EOF'\n   ...\n   EOF\n   Sections:\n%s\n"+
 			"2. End your reply with exactly:\n   VERDICT: PASS | FAIL\n   TASK: T%d\n   BLOCKING: <count>\n   TOP: <most important finding, or none>",
 			it.ID, t.N, indent(stripComments(tpl("verify")), "   "), t.N),
-	}, "\n\n")
+	})
 }
 
 func briefPlan(s *Store, it Item) string {
@@ -387,14 +404,14 @@ func briefPlan(s *Store, it Item) string {
 		lines = append(lines, fmt.Sprintf("- T%d %s | covers %s | deps %s | %s | %s", t.N, t.Title, orDash(t.Covers), orDash(t.Deps), t.Status, has))
 	}
 	b := budgetFor(s)
-	return strings.Join([]string{
+	return joinParts([]string{
 		fmt.Sprintf("# Plan brief: %s %s: %s", fid(it.ID), kindScope(it), it.Title),
 		"Budget: " + b.Reading,
 		worktreeLine(s, it),
 		section("Spec", s.getDoc("spec", it.ID, 0)),
 		section("Tasks", strings.Join(lines, "\n")),
-		section("Code map", stripComments(s.getDoc("map", 0, 0))),
-		section("Project lessons", stripComments(s.getDoc("lessons", 0, 0))),
+		optSection("Code map", stripComments(s.getDoc("map", 0, 0))),
+		optSection("Project lessons", stripComments(s.getDoc("lessons", 0, 0))),
 		"## Your job\n" +
 			"Write a packet for every task marked NEEDS PACKET (" + strings.Join(missing, ", ") + "). The builder reads ONLY its packet, so make it self-contained:\n" +
 			"- Research within the Budget above. Don't survey the whole repo.\n" +
@@ -404,7 +421,7 @@ func briefPlan(s *Store, it Item) string {
 			"- Every AC must stay covered by some task.",
 		fmt.Sprintf("## Commands\n- packet: factory write task %d T<n> <<'EOF'\n  ...\n  EOF   (sections: `factory internal template task`)\n- check: factory cat plan %d\n\n"+
 			"## Return (end your reply with exactly)\nDECISION: planned | park\nREASON: <one line>", it.ID, it.ID),
-	}, "\n\n")
+	})
 }
 
 func verdictLine(doc string) string {
@@ -432,13 +449,13 @@ func briefJudge(s *Store, it Item) string {
 		}
 		ts = append(ts, line)
 	}
-	return strings.Join([]string{
+	return joinParts([]string{
 		fmt.Sprintf("# Judge brief: %s %s: %s", fid(it.ID), kindScope(it), it.Title),
 		"Budget: " + budgetFor(s).Reading,
 		worktreeLine(s, it),
 		acBlock(s, it, ""),
 		section("Tasks", strings.Join(ts, "\n")),
-		section("Diffstat vs factory", stat),
+		optSection("Diffstat vs factory", stat),
 		"## Your job\nDecide whether this feature is complete and safe to merge. Every AC must be satisfied by verified tasks. " +
 			fmt.Sprintf("Spot-check with `git diff %s...%s -- <file>` only where the summary leaves doubt; don't read the whole diff.", integrationBranch, branchName(it)),
 		fmt.Sprintf("## Commands\n- merge: write the squash-commit body (2-6 lines: what and why; the subject `%s: %s` is added for you):\n"+
@@ -446,7 +463,7 @@ func briefJudge(s *Store, it Item) string {
 			"- tasks-added: for each gap, `factory task-add %[3]d \"<title>\" --covers ACn` and write its packet with `factory write task %[3]d T<n>`.\n"+
 			"- park: when a human is needed.\n\n"+
 			"## Return (end your reply with exactly)\nDECISION: merge | tasks-added | park\nREASON: <one line>", kindScope(it), it.Title, it.ID),
-	}, "\n\n")
+	})
 }
 
 func briefResolve(s *Store, it Item, phase string) string {
