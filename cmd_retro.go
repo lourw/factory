@@ -91,7 +91,7 @@ func retroDigest(s *Store, since float64) string {
 				fixes = append(fixes, fmt.Sprintf("%s T%d: %d (%s)", fid(it.ID), t.N, t.Fixes, t.Title))
 			}
 			for _, l := range strings.Split(s.getDoc("verify", it.ID, t.N), "\n") {
-				if l = strings.TrimSpace(l); strings.Contains(l, "[blocking]") {
+				if l = strings.TrimSpace(l); strings.HasPrefix(l, "- [blocking]") {
 					parks = append(parks, fmt.Sprintf("%s T%d %s", fid(it.ID), t.N, l))
 				}
 			}

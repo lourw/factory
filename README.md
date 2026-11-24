@@ -130,6 +130,11 @@ factory run
 | `FACTORY_TAIL` | Lines of failure excerpt shown from gate/test logs (default 30). |
 | `VISUAL` / `EDITOR` | Used by `factory edit`. |
 
+Per-project settings (`factory internal config <key> <value>`) include:
+
+- `post_land`: shell command run in the main checkout after `factory land`, with `FACTORY_LANDED_RANGE=<old>..<new>`; failure only warns.
+- `remote`: remote that `factory land --push` pushes main to (default `origin`).
+
 The main branch is detected as `main`, then `master`, then the current branch, and stored. Override it with `factory run --main <branch>`.
 
 ### Claude backend

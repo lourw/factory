@@ -82,7 +82,9 @@ assert "land refuses during active run" 'grep -q "run is active" <<<"$out"'
 
 echo "== main diverges, then land (rebase + gate in temp worktree)"
 echo more > NOTES && git add NOTES && git commit -qm "docs: notes"
-factory land
+factory internal config post_land 'echo POSTLAND $FACTORY_LANDED_RANGE'
+out=$(factory land 2>&1); echo "$out"
+assert "post_land ran with landed range" 'grep -Eq "POSTLAND [0-9a-f]+\.\.[0-9a-f]+" <<<"$out"'
 assert "main fast-forwarded to factory" '[ "$(git rev-parse main)" = "$(git rev-parse factory)" ]'
 assert "land kept the diverged main commit" "git log --format=%s main | grep -qx 'docs: notes'"
 assert "land rebased + gated, temp worktree gone" "! git worktree list | grep -q _factory"

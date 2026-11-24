@@ -326,6 +326,25 @@ func cmdLand(a Args) {
 		git(s.root, "update-ref", "refs/heads/"+mb, f, m)
 	}
 	fmt.Printf("%s → %s (%s commit(s) landed)\n", mb, f[:8], n)
+	dir := s.root
+	if mainOut {
+		dir = mainWT
+	}
+	if hook := s.cfg("post_land", ""); hook != "" {
+		cmd := exec.Command("bash", "-c", hook)
+		cmd.Dir, cmd.Stdout, cmd.Stderr = dir, os.Stdout, os.Stderr
+		cmd.Env = append(os.Environ(), "FACTORY_LANDED_RANGE="+m+".."+f)
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: post_land failed: %v (land already happened)\n", err)
+		}
+	}
+	if a.Bools["push"] {
+		remote := s.cfg("remote", "origin")
+		if out, ok := gitRun(s.root, "push", remote, mb); !ok {
+			die("git push %s %s failed: %s", remote, mb, out)
+		}
+		fmt.Printf("pushed %s to %s\n", mb, remote)
+	}
 }
 
 func teardownLand(s *Store, tmp string) {

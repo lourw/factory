@@ -490,8 +490,9 @@ func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out 
 	}
 	secs := time.Since(start).Seconds()
 	text := buf.String()
-	parsed, u, calls, ok := parseClaudeJSON(text)
-	if ok {
+	claude := r.backend == "claude" && os.Getenv("FACTORY_AGENT_CMD") == ""
+	parsed, u, calls := parseAgentOutput(claude, text)
+	if parsed != text {
 		text = parsed
 		fmt.Fprintf(f, "\n--- result ---\n%s\n", text)
 	}
@@ -499,7 +500,7 @@ func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out 
 	out = parseReturn(text)
 	out["_tail"] = lastLines(text, 20)
 	model := ""
-	if r.backend == "claude" && os.Getenv("FACTORY_AGENT_CMD") == "" {
+	if claude {
 		model = claudeModel(r.s, name)
 	}
 	r.s.recordAgentRun(it.ID, label, name, model, secs, u, toolCounts(calls))
@@ -508,6 +509,18 @@ func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out 
 	}
 	fmt.Fprintf(f, "\n[%.0fs]\n", secs)
 	return out, true
+}
+
+// parseAgentOutput extracts the agent's final text, usage and tool calls.
+// Only claude output is JSON; other backends' text is returned unchanged so
+// stray JSON-looking lines can't swallow the return block.
+func parseAgentOutput(claude bool, out string) (text string, u agentUsage, calls []toolCall) {
+	if claude {
+		if parsed, u, calls, ok := parseClaudeJSON(out); ok {
+			return parsed, u, calls
+		}
+	}
+	return out, u, nil
 }
 
 // lastLines returns the last n lines of s.

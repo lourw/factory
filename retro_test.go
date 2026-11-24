@@ -18,7 +18,7 @@ func TestRetroDigest(t *testing.T) {
 	s.exec("INSERT INTO events(ts,item_id,kind,msg) VALUES(?,?,'status','merged')", mapTs+10, it.ID)
 	s.exec("INSERT INTO events(ts,item_id,kind,msg) VALUES(?,?,'status','merged')", mapTs-10, old.ID)
 	s.exec("INSERT INTO tasks(item_id,n,title,fixes) VALUES(?,1,'a',2)", it.ID)
-	s.putDoc("verify", "ok\n[blocking] x\n[minor] y", it.ID, 1)
+	s.putDoc("verify", "ok\n- [blocking] x\n- [minor] y\n- AC1: no item is marked [blocking] wrongly", it.ID, 1)
 	ms := s.mergedSince(mapTs)
 	if len(ms) != 1 || ms[0].ID != it.ID {
 		t.Fatalf("mergedSince: %+v", ms)
@@ -29,7 +29,7 @@ func TestRetroDigest(t *testing.T) {
 			t.Fatalf("digest missing %q:\n%s", want, d)
 		}
 	}
-	if strings.Contains(d, "Old merge") || strings.Contains(d, "[minor]") {
+	if strings.Contains(d, "Old merge") || strings.Contains(d, "[minor]") || strings.Contains(d, "AC1") {
 		t.Fatalf("digest has extra content:\n%s", d)
 	}
 }

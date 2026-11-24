@@ -177,6 +177,23 @@ func TestParseClaudeStreamNoResult(t *testing.T) {
 	}
 }
 
+func TestParseAgentOutputNonClaude(t *testing.T) {
+	// JSON on its own line: unconditional stream parsing would treat it as
+	// claude output and drop the STATUS block.
+	out := "{\"type\":\"module\"}\nSTATUS: done\nTASK: T1\n"
+	text, _, calls := parseAgentOutput(false, out)
+	if text != out || len(calls) != 0 {
+		t.Fatalf("non-claude output altered: %q", text)
+	}
+	if parseReturn(text)["STATUS"] != "done" {
+		t.Fatalf("STATUS lost: %q", text)
+	}
+	js := `{"type":"result","result":"STATUS: done"}`
+	if text, _, _ := parseAgentOutput(true, js); text != "STATUS: done" {
+		t.Fatalf("claude output not parsed: %q", text)
+	}
+}
+
 func TestTopTools(t *testing.T) {
 	for _, c := range []struct {
 		counts map[string]int
