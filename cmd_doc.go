@@ -513,6 +513,9 @@ func briefJudge(s *Store, it Item) string {
 		if t.Fixes > 0 {
 			line += fmt.Sprintf(" | fix rounds: %d", t.Fixes)
 		}
+		if isIntegrationTask(t) {
+			line += " | integration (no AC)"
+		}
 		if t.Note != "" {
 			line += " | " + t.Note
 		}

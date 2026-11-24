@@ -769,7 +769,11 @@ func (r *runner) mergeJob(it Item) {
 		if !r.syncFactory(it) || r.killed.Load() {
 			return
 		}
+		base := ""
 		if !isAncestor(wt, integrationBranch, "HEAD") {
+			if b, ok := gitRun(wt, "merge-base", "HEAD", integrationBranch); ok {
+				base = strings.TrimSpace(b)
+			}
 			out, ok := gitRun(wt, "merge", "--no-edit", "-q", integrationBranch)
 			if !ok {
 				if len(conflictedFiles(wt)) == 0 {
@@ -796,8 +800,7 @@ func (r *runner) mergeJob(it Item) {
 			return
 		}
 		if ok, summary := runGate(r.s, wt, it.ID, 0, nil); !ok {
-			r.s.park(it, "gate failed after merging factory")
-			r.log("%s parked: gate failed after merging factory\n%s", tag(it), summary)
+			r.gateFailedAfterMerge(it, wt, base, summary)
 			return
 		}
 		if !isClean(fw) {

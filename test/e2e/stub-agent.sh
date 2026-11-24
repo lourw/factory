@@ -23,6 +23,8 @@ build)
   echo "item $item $task" >> "feature-$item.txt"
   if grep -q SHARED <<<"$head"; then echo "line from item $item $task" >> shared.txt; fi
   if grep -q LIBEDIT <<<"$head"; then sed -i 's/^five$/FIVE/' lib.txt; sed -i '1i new-b' lib.txt; sed -i '1i new-a' lib.txt; fi
+  if grep -q NEEDSFIX <<<"$head"; then touch needs-fix.txt; ls feature-*.txt > fixed.txt; fi
+  if factory show "$item" | grep -qE "\b$task\b.*Integrate with factory"; then ls feature-*.txt > fixed.txt; fi
   echo "Status: done" | factory write report "$item" "$task"
   printf 'STATUS: done\nTASK: %s\nNOTE: stub\n' "$task" ;;
 verify)
