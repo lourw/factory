@@ -33,6 +33,10 @@ verify)
     printf 'VERDICT: PASS\nTOP: none\n'
   fi ;;
 judge)
+  flag="$(git rev-parse --git-common-dir)/stub-repack-$item"
+  if grep -q REPACK <<<"$head" && [ ! -e "$flag" ]; then # rewrite T1 mid-judge, once
+    touch "$flag"; printf '## Goal\nrewritten packet\n' | factory write task "$item" T1
+  fi
   echo "Stub body for item $item." | factory write merge-msg "$item"
   printf 'DECISION: merge\nREASON: ok\n' ;;
 refresh)

@@ -274,6 +274,13 @@ func (r *runner) nextAction(it Item, dry bool) *action {
 	}
 	switch it.Status {
 	case "building":
+		if rf := r.s.rerunFrom(it.ID); rf != "" && !dry {
+			wt := featureWorktree(r.s, it)
+			gitRun(wt, "reset", "-q", "--hard", rf)
+			gitRun(wt, "clean", "-fdq")
+			r.s.exec("UPDATE items SET rerun_from='' WHERE id=?", it.ID)
+			r.log("%s rerun: worktree reset to %s", tag(it), rf[:min(8, len(rf))])
+		}
 		if allVerified(ts) {
 			if dry {
 				return &action{prio: 0, it: it, label: "judge"}
@@ -578,8 +585,14 @@ func (r *runner) buildJob(it Item, t Task, fix bool) {
 		args += " --fix"
 		label = fmt.Sprintf("fix T%d", t.N)
 	}
+	start := now()
 	out, alive := r.agent("factory-builder", it, label, args, wt)
 	if !alive {
+		return
+	}
+	if r.changedDuring(it, t.N, start, label) {
+		gitRun(wt, "reset", "-q", "--hard", "HEAD")
+		gitRun(wt, "clean", "-fdq")
 		return
 	}
 	t = r.s.task(it, strconv.Itoa(t.N))
@@ -622,10 +635,22 @@ func (r *runner) buildJob(it Item, t Task, fix bool) {
 	r.log("%s %s → done, gate PASS, committed %s %s", tag(it), label, sha[:8], stat)
 }
 
+// changedDuring reports whether task n's job result must be discarded: the task was reset to
+// todo (packet rewritten) after the job started, or a re-run reset of the worktree is pending.
+func (r *runner) changedDuring(it Item, n int, start float64, label string) bool {
+	t := r.s.task(it, strconv.Itoa(n))
+	if (t.Updated > start && t.Status == "todo") || r.s.rerunFrom(it.ID) != "" {
+		r.log("%s %s: task changed during job; result discarded", tag(it), label)
+		return true
+	}
+	return false
+}
+
 func (r *runner) verifyJob(it Item, t Task) {
+	start := now()
 	out, alive := r.agent("factory-verifier", it, fmt.Sprintf("verify T%d", t.N),
 		fmt.Sprintf("verify %d T%d --tests", it.ID, t.N), featureWorktree(r.s, it))
-	if !alive {
+	if !alive || r.changedDuring(it, t.N, start, fmt.Sprintf("verify T%d", t.N)) {
 		return
 	}
 	t = r.s.task(it, strconv.Itoa(t.N))

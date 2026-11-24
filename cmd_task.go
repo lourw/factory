@@ -103,7 +103,7 @@ func nextRunnable(ts []Task, pipeline bool, skip map[string]bool) *Task {
 	for _, t := range ts {
 		st[fmt.Sprintf("T%d", t.N)] = t.Status
 	}
-	ok := set("verified")
+	ok := set("verified", "dropped")
 	if pipeline {
 		ok["built"] = true
 	}
@@ -130,7 +130,7 @@ func allVerified(ts []Task) bool {
 		return false
 	}
 	for _, t := range ts {
-		if t.Status != "verified" {
+		if t.Status != "verified" && t.Status != "dropped" {
 			return false
 		}
 	}

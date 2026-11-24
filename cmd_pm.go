@@ -190,6 +190,22 @@ func showItem(s *Store, it Item, events int) {
 	}
 }
 
+// specWarnings re-runs the ready validation for items past backlog; spec edits
+// never block, so problems come back as warnings.
+func specWarnings(s *Store, it Item) []string {
+	if it.Status == "backlog" {
+		return nil
+	}
+	var out []string
+	for _, p := range readyProblems(s, it) {
+		if strings.HasPrefix(p, "ACs not covered") {
+			p += fmt.Sprintf(" (factory task-add %d <title> --covers ACn)", it.ID)
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
 // readyProblems lists what keeps an item from being picked up by `factory run`.
 func readyProblems(s *Store, it Item) []string {
 	var problems []string
@@ -206,6 +222,9 @@ func readyProblems(s *Store, it Item) []string {
 	}
 	covered := map[string]bool{}
 	for _, t := range ts {
+		if t.Status == "dropped" {
+			continue
+		}
 		for _, c := range splitList(t.Covers) {
 			covered[c] = true
 		}

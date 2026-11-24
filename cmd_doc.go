@@ -128,6 +128,15 @@ func cmdWrite(a Args) {
 	if body == "" {
 		die("empty body")
 	}
+	var it Item
+	var t Task
+	if kind == "task" {
+		it = s.item(strconv.Itoa(itemID))
+		if contains([]string{"merging", "merged", "dropped"}, it.Status) {
+			die("item %s is %s: add a new item for further changes (factory add <title>)", fid(it.ID), it.Status)
+		}
+		t, _ = scanTask(s.db.QueryRow("SELECT "+taskCols+" FROM tasks WHERE item_id=? AND n=?", itemID, n))
+	}
 	if a.Bools["append"] {
 		if old := s.getDoc(kind, itemID, n); old != "" {
 			body = strings.TrimSpace(old + "\n" + body)
@@ -145,6 +154,14 @@ func cmdWrite(a Args) {
 		s.event(itemID, "doc", msg, n)
 	}
 	fmt.Printf("saved %s (%d lines)\n", kind, len(strings.Split(body, "\n")))
+	if kind == "task" && (t.Status == "built" || t.Status == "verified") && (it.Status == "building" || it.Status == "judging") {
+		fmt.Println("re-run: " + taskList(s.markRerun(it, n, "packet changed")))
+	}
+	if kind == "spec" {
+		for _, w := range specWarnings(s, s.item(strconv.Itoa(itemID))) {
+			fmt.Println("warning: " + w)
+		}
+	}
 }
 
 func cmdEdit(a Args) {

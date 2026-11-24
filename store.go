@@ -55,8 +55,8 @@ var (
 		"parked":   "inspect the worktree (`factory show %d`), fix (or `/factory-feature refresh`), then `factory set %[1]d --status ready`",
 		"dropped":  "-",
 	}
-	taskStatuses = []string{"todo", "built", "failed", "verified", "blocked"}
-	mark         = map[string]string{"todo": "[ ]", "built": "[~]", "failed": "[-]", "verified": "[x]", "blocked": "[!]"}
+	taskStatuses = []string{"todo", "built", "failed", "verified", "blocked", "dropped"}
+	mark         = map[string]string{"todo": "[ ]", "built": "[~]", "failed": "[-]", "verified": "[x]", "blocked": "[!]", "dropped": "[-]"}
 	projectDocs  = set("map", "lessons")
 	itemDocs     = set("spec", "notes", "merge-msg")
 	taskDocs     = set("task", "report", "verify")
@@ -175,7 +175,7 @@ func (s *Store) migrate() {
 		{"items", "scope", "TEXT DEFAULT ''"}, {"items", "park_reason", "TEXT DEFAULT ''"}, {"items", "merged_sha", "TEXT DEFAULT ''"},
 		{"items", "slot", "INTEGER DEFAULT 0"}, {"items", "after_ids", "TEXT DEFAULT ''"}, {"items", "filler", "INTEGER DEFAULT 0"},
 		{"tasks", "partial", "INTEGER DEFAULT 0"}, {"agent_runs", "tools", "TEXT DEFAULT ''"},
-		{"gate_runs", "tree", "TEXT DEFAULT ''"},
+		{"gate_runs", "tree", "TEXT DEFAULT ''"}, {"items", "rerun_from", "TEXT DEFAULT ''"},
 	} {
 		if !s.hasColumn(c[0], c[1]) {
 			s.exec("ALTER TABLE " + c[0] + " ADD COLUMN " + c[1] + " " + c[2])
@@ -431,19 +431,68 @@ func progress(ts []Task) string {
 // building with every task verified → judging; judging/merging with an unverified task → building.
 func (s *Store) refreshItemStatus(itemID int) {
 	it := s.item(strconv.Itoa(itemID))
-	ts := s.tasks(it)
-	all := len(ts) > 0
-	for _, t := range ts {
-		if t.Status != "verified" {
-			all = false
-		}
-	}
+	all := allVerified(s.tasks(it))
 	switch {
 	case it.Status == "building" && all:
 		s.setStatus(it, "judging", "all tasks verified")
 	case (it.Status == "judging" || it.Status == "merging") && !all:
 		s.setStatus(it, "building", "tasks reopened")
 	}
+}
+
+// markRerun sends task n, and every built/verified task whose commit descends from
+// task n's commit, back to todo; judging items return to building. rerun_from
+// records the parent of task n's commit. Returns the affected task numbers.
+func (s *Store) markRerun(it Item, n int, why string) []int {
+	ts := s.tasks(it)
+	var tn Task
+	for _, t := range ts {
+		if t.N == n {
+			tn = t
+		}
+	}
+	dir := featureWorktree(s, it)
+	hasGit := tn.Sha != "" && dirExists(dir)
+	var affected []int
+	for _, t := range ts {
+		switch {
+		case t.N == n:
+		case t.Sha == "" || (t.Status != "built" && t.Status != "verified"):
+			continue
+		case hasGit:
+			if _, err := gitOut(dir, "merge-base", "--is-ancestor", tn.Sha, t.Sha); err != nil {
+				continue
+			}
+		case t.N < n:
+			continue
+		}
+		affected = append(affected, t.N)
+		s.exec("UPDATE tasks SET status='todo', sha='', fixes=0, updated=? WHERE item_id=? AND n=?", now(), it.ID, t.N)
+	}
+	if hasGit {
+		if from, err := gitOut(dir, "rev-parse", tn.Sha+"^"); err == nil {
+			s.exec("UPDATE items SET rerun_from=? WHERE id=?", from, it.ID)
+		}
+	}
+	s.event(it.ID, "task", "rerun: "+why+" ("+taskList(affected)+")", n)
+	if it.Status == "judging" {
+		s.setStatus(it, "building", "rerun: "+why)
+	}
+	return affected
+}
+
+func taskList(ns []int) string {
+	var names []string
+	for _, a := range ns {
+		names = append(names, fmt.Sprintf("T%d", a))
+	}
+	return strings.Join(names, ", ")
+}
+
+func (s *Store) rerunFrom(itemID int) string {
+	var v string
+	s.db.QueryRow("SELECT COALESCE(rerun_from,'') FROM items WHERE id=?", itemID).Scan(&v)
+	return v
 }
 
 // park parks an item and frees its slot: the worktree moves to parked-NNN-slug (see parkWorktree).
