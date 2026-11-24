@@ -118,6 +118,30 @@ func gitRun(dir string, args ...string) (string, bool) {
 	return strings.TrimSpace(string(out)), err == nil
 }
 
+// treeKey hashes the worktree's full content (tracked + untracked, honoring
+// .gitignore) via a temporary index, leaving the real index alone. "" on error.
+func treeKey(dir string) string {
+	f, err := os.CreateTemp("", "factory-index-*")
+	if err != nil {
+		return ""
+	}
+	idx := f.Name()
+	f.Close()
+	os.Remove(idx) // git wants to create it itself
+	defer os.Remove(idx)
+	defer os.Remove(idx + ".lock")
+	var out []byte
+	for _, args := range [][]string{{"read-tree", "HEAD"}, {"add", "-A"}, {"write-tree"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+idx)
+		if out, err = cmd.Output(); err != nil {
+			return ""
+		}
+	}
+	return strings.TrimSpace(string(out))
+}
+
 func isClean(dir string) bool {
 	out, ok := gitRun(dir, "status", "--porcelain")
 	return ok && out == ""

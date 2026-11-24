@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -109,12 +111,19 @@ func newLogdir(root string) string {
 	return d
 }
 
-func (s *Store) recordRun(itemID, n int, name string, ok bool, secs float64, log string) {
+func (s *Store) recordRun(itemID, n int, name string, ok bool, secs float64, log, tree string) {
 	okInt := 0
 	if ok {
 		okInt = 1
 	}
-	s.exec("INSERT INTO gate_runs(ts,item_id,task_n,name,ok,secs,log) VALUES(?,?,?,?,?,?,?)", now(), itemID, n, name, okInt, secs, log)
+	s.exec("INSERT INTO gate_runs(ts,item_id,task_n,name,ok,secs,log,tree) VALUES(?,?,?,?,?,?,?,?)", now(), itemID, n, name, okInt, secs, log, tree)
+}
+
+// cachedPass reports whether the latest run of name with this (non-empty) key passed.
+func (s *Store) cachedPass(name, key string) bool {
+	var ok int
+	err := s.db.QueryRow("SELECT ok FROM gate_runs WHERE name=? AND tree=? AND tree<>'' ORDER BY id DESC LIMIT 1", name, key).Scan(&ok)
+	return err == nil && ok == 1
 }
 
 func rel(root, p string) string {
@@ -141,11 +150,24 @@ func runGate(s *Store, dir string, itemID, n int, names []string) (bool, string)
 		return true, "GATE: PASS (no checks configured)"
 	}
 	logdir := newLogdir(s.root)
+	tree := ""
+	if s.cfg("gate_cache", "on") != "off" {
+		tree = treeKey(dir)
+	}
 	var out, failed []string
 	for _, g := range rows {
+		key := ""
+		if tree != "" {
+			h := sha1.Sum([]byte(g.Cmd))
+			key = tree + ":" + hex.EncodeToString(h[:])
+			if s.cachedPass(g.Name, key) {
+				out = append(out, fmt.Sprintf("PASS %s (cached)", g.Name))
+				continue
+			}
+		}
 		ctx := s.ctxFor(dir)
 		ok, secs, log := runCheck(dir, g.Name, s.expand(g.Cmd, ctx), logdir, s.envFor(ctx))
-		s.recordRun(itemID, n, g.Name, ok, secs, log)
+		s.recordRun(itemID, n, g.Name, ok, secs, log, key)
 		switch {
 		case ok:
 			out = append(out, fmt.Sprintf("PASS %s (%.0fs)", g.Name, secs))
@@ -170,7 +192,7 @@ func runSetup(s *Store, dir string, itemID int) (bool, string) {
 	}
 	ctx := s.ctxFor(dir)
 	ok, secs, log := runCheck(dir, "setup", s.expand(cmd, ctx), newLogdir(s.root), s.envFor(ctx))
-	s.recordRun(itemID, 0, "setup", ok, secs, log)
+	s.recordRun(itemID, 0, "setup", ok, secs, log, "")
 	if ok {
 		return true, fmt.Sprintf("PASS setup (%.0fs)", secs)
 	}
@@ -248,7 +270,7 @@ func cmdTest(a Args) {
 	}
 	ctx := s.ctxFor(worktreeTop())
 	ok, secs, log := runCheck(worktreeTop(), "test_focused", s.expand(cmd, ctx), newLogdir(s.root), s.envFor(ctx))
-	s.recordRun(0, 0, "test_focused", ok, secs, log)
+	s.recordRun(0, 0, "test_focused", ok, secs, log, "")
 	if ok {
 		fmt.Printf("PASS test_focused (%.0fs)\n", secs)
 		return

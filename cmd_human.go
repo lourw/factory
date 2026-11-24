@@ -335,6 +335,9 @@ func cmdConfig(a Args) {
 	if key == "tagging" && val != "off" && val != "semver" && val != "-" {
 		die("tagging must be off or semver")
 	}
+	if key == "gate_cache" && val != "on" && val != "off" && val != "-" {
+		die("gate_cache must be on or off")
+	}
 	if key == "backend" && val != "opencode" && val != "claude" && val != "-" {
 		die("backend must be opencode or claude")
 	}

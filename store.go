@@ -175,6 +175,7 @@ func (s *Store) migrate() {
 		{"items", "scope", "TEXT DEFAULT ''"}, {"items", "park_reason", "TEXT DEFAULT ''"}, {"items", "merged_sha", "TEXT DEFAULT ''"},
 		{"items", "slot", "INTEGER DEFAULT 0"}, {"items", "after_ids", "TEXT DEFAULT ''"}, {"items", "filler", "INTEGER DEFAULT 0"},
 		{"tasks", "partial", "INTEGER DEFAULT 0"}, {"agent_runs", "tools", "TEXT DEFAULT ''"},
+		{"gate_runs", "tree", "TEXT DEFAULT ''"},
 	} {
 		if !s.hasColumn(c[0], c[1]) {
 			s.exec("ALTER TABLE " + c[0] + " ADD COLUMN " + c[1] + " " + c[2])
@@ -225,6 +226,7 @@ var configKeys = map[string]string{
 	"claude_effort_overseer": "effort for the overseer on the claude backend (default: claude_effort)",
 	"claude_effort_builder":  "effort for the builder on the claude backend (default: claude_effort)",
 	"claude_effort_verifier": "effort for the verifier on the claude backend (default: claude_effort)",
+	"gate_cache":             "on | off: skip gate checks that already passed on an identical tree + command (default on)",
 	"claude_max_usd":         "per-job spend cap for the claude backend (claude --max-budget-usd; default none)",
 }
 
