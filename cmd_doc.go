@@ -314,21 +314,61 @@ func indent(s, pre string) string {
 
 func short(sha string) string { return sha[:min(12, len(sha))] }
 
-func depLines(s *Store, it Item, t Task) string {
-	var deps []string
-	for _, d := range splitList(t.Deps) {
-		dt, err := scanTask(s.db.QueryRow("SELECT "+taskCols+" FROM tasks WHERE item_id=? AND n=?", it.ID, taskN(d)))
-		if err != nil {
-			deps = append(deps, "- "+d+": missing")
+// earlierTasks summarizes built/verified tasks before t from their reports
+// (Changed + Follow-ups/Notes, ≤maxLines each) and lists deps not yet done.
+func earlierTasks(s *Store, it Item, t Task, maxLines int) string {
+	done := map[int]bool{}
+	var out []string
+	for _, et := range s.tasks(it) {
+		if et.N >= t.N || (et.Status != "built" && et.Status != "verified") {
 			continue
 		}
-		line := fmt.Sprintf("- %s %s: %s", d, dt.Title, dt.Status)
-		if dt.Sha != "" {
-			line += " (" + dt.Sha[:8] + ")"
+		done[et.N] = true
+		line := fmt.Sprintf("T%d %s", et.N, et.Title)
+		if et.Sha != "" {
+			line += " (" + et.Sha[:min(8, len(et.Sha))] + ")"
 		}
-		deps = append(deps, line)
+		out = append(out, line)
+		for _, l := range reportLines(s.getDoc("report", it.ID, et.N), maxLines) {
+			out = append(out, "  "+l)
+		}
 	}
-	return strings.Join(deps, "\n")
+	for _, d := range splitList(t.Deps) {
+		if n := taskN(d); !done[n] {
+			status := "missing"
+			if dt, err := scanTask(s.db.QueryRow("SELECT "+taskCols+" FROM tasks WHERE item_id=? AND n=?", it.ID, n)); err == nil {
+				status = dt.Status
+			}
+			out = append(out, fmt.Sprintf("T%d: %s", n, status))
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// reportLines returns non-blank, non-placeholder lines under a report's
+// Changed and Follow-ups/Notes headings, capped at max.
+func reportLines(report string, max int) []string {
+	placeholder := map[string]bool{}
+	for _, l := range strings.Split(tpl("report"), "\n") {
+		placeholder[strings.TrimSpace(l)] = true
+	}
+	var out []string
+	keep := false
+	for _, l := range strings.Split(report, "\n") {
+		l = strings.TrimSpace(l)
+		if h, ok := strings.CutPrefix(l, "## "); ok {
+			keep = h == "Changed" || h == "Follow-ups" || h == "Notes"
+			continue
+		}
+		if !keep || l == "" || placeholder[l] {
+			continue
+		}
+		if len(out) == max {
+			break
+		}
+		out = append(out, l)
+	}
+	return out
 }
 
 func worktreeLine(s *Store, it Item) string {
@@ -361,7 +401,7 @@ func briefBuild(s *Store, it Item, t Task, fix bool) string {
 		"Budget: " + budgetFor(s).Reading,
 		fmt.Sprintf("item: %s: %s | mode: %s\n%s", kindScope(it), it.Title, mode, worktreeLine(s, it)) + dirtyNote(s, it),
 		acBlock(s, it, t.Covers),
-		optSection("Dependencies (already committed in this worktree)", depLines(s, it, t)),
+		optSection("Earlier tasks", earlierTasks(s, it, t, budgetFor(s).ReportLines)),
 		section("Packet", packet),
 	}
 	if fix {
