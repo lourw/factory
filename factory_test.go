@@ -141,6 +141,26 @@ func TestParseReturn(t *testing.T) {
 	}
 }
 
+func TestClaudeToolList(t *testing.T) {
+	list := func(name string) string {
+		b, err := opencodeFS.ReadFile("agents/factory-" + name + ".md")
+		if err != nil {
+			t.Fatal(err)
+		}
+		front, _ := splitFrontmatter(string(b))
+		return claudeToolList(claudeAllowedTools(front))
+	}
+	if got := list("builder"); got != "Read,Grep,Glob,Edit,Write,Bash" {
+		t.Fatalf("builder: %q", got)
+	}
+	if got := list("verifier"); got != "Read,Grep,Glob,Bash" {
+		t.Fatalf("verifier: %q", got)
+	}
+	if got := claudeToolList([]string{"Read", "Bash(a *)", "Edit", "Bash(b)"}); got != "Read,Bash,Edit" {
+		t.Fatalf("order/dups: %q", got)
+	}
+}
+
 func TestClaudeAllowedTools(t *testing.T) {
 	tools := func(name string) []string {
 		b, err := opencodeFS.ReadFile("agents/factory-" + name + ".md")
@@ -387,9 +407,18 @@ func TestAgentCmdTemplate(t *testing.T) {
 	if strings.Contains(got, "--max-budget-usd") {
 		t.Fatalf("budget flag without claude_max_usd: %q", got)
 	}
+	for _, want := range []string{"--strict-mcp-config", "--disable-slash-commands", "--setting-sources project",
+		"--tools " + shellQuote("Read,Grep,Glob,Edit,Write,Bash")} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %q", want, got)
+		}
+	}
+	if !strings.HasSuffix(got, " -- {message}") {
+		t.Fatalf("message not after --: %q", got)
+	}
 	s.setCfg("claude_max_usd", "2")
 	if b, err := r.agentCmdTemplate("factory-builder"); err != nil ||
-		!strings.Contains(b, "--max-budget-usd "+shellQuote("2")+" {message}") {
+		!strings.Contains(b, "--max-budget-usd "+shellQuote("2")+" -- {message}") {
 		t.Fatalf("claude_max_usd: %q %v", b, err)
 	}
 	s.setCfg("claude_max_usd", "-")

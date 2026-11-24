@@ -30,7 +30,8 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 	if err := writeFileAtomic(promptPath, []byte(body)); err != nil {
 		return "", err
 	}
-	settings := map[string]any{"permissions": map[string]any{"allow": claudeAllowedTools(front)}}
+	allow := claudeAllowedTools(front)
+	settings := map[string]any{"permissions": map[string]any{"allow": allow}}
 	js, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return "", err
@@ -45,7 +46,26 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 	}
 	return "claude -p --model " + shellQuote(claudeModel(r.s, name)) +
 		" --output-format json --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
-		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) + budget + " {message}", nil
+		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) +
+		" --strict-mcp-config --disable-slash-commands --setting-sources project --tools " +
+		shellQuote(claudeToolList(allow)) + budget + " -- {message}", nil
+}
+
+// claudeToolList is the --tools value for an allowlist: each non-Bash(...)
+// entry, plus Bash when any Bash(...) pattern exists, in order, comma-joined.
+func claudeToolList(allow []string) string {
+	var out []string
+	seen := map[string]bool{}
+	for _, t := range allow {
+		if strings.HasPrefix(t, "Bash(") {
+			t = "Bash"
+		}
+		if !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 // agentUsage is the cost and token usage of one agent job (zero when unknown).
