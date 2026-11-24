@@ -221,6 +221,7 @@ var configKeys = map[string]string{
 	"claude_model_overseer": "model for the overseer on the claude backend (default: claude_model)",
 	"claude_model_builder":  "model for the builder on the claude backend (default: claude_model)",
 	"claude_model_verifier": "model for the verifier on the claude backend (default: claude_model)",
+	"claude_max_usd":        "per-job spend cap for the claude backend (claude --max-budget-usd; default none)",
 }
 
 func (s *Store) cfg(key, def string) string {

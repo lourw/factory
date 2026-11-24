@@ -384,6 +384,15 @@ func TestAgentCmdTemplate(t *testing.T) {
 	if !strings.Contains(got, "--model 'opus'") && !strings.Contains(got, "--model opus") {
 		t.Fatalf("model: %q", got)
 	}
+	if strings.Contains(got, "--max-budget-usd") {
+		t.Fatalf("budget flag without claude_max_usd: %q", got)
+	}
+	s.setCfg("claude_max_usd", "2")
+	if b, err := r.agentCmdTemplate("factory-builder"); err != nil ||
+		!strings.Contains(b, "--max-budget-usd "+shellQuote("2")+" {message}") {
+		t.Fatalf("claude_max_usd: %q %v", b, err)
+	}
+	s.setCfg("claude_max_usd", "-")
 	s.setCfg("claude_model_builder", "sonnet")
 	if b, err := r.agentCmdTemplate("factory-builder"); err != nil || !strings.Contains(b, "--model "+shellQuote("sonnet")) {
 		t.Fatalf("builder override: %q %v", b, err)

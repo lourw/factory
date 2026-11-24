@@ -332,6 +332,11 @@ func cmdConfig(a Args) {
 	if key == "backend" && val != "opencode" && val != "claude" && val != "-" {
 		die("backend must be opencode or claude")
 	}
+	if key == "claude_max_usd" && val != "-" {
+		if f, err := strconv.ParseFloat(val, 64); err != nil || !(f > 0) {
+			die("claude_max_usd must be a positive number")
+		}
+	}
 	if key == "worktree_root" && activeRun(s.root) != 0 {
 		die("a run is active; change worktree_root between runs")
 	}

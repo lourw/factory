@@ -39,9 +39,13 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 	if err := writeFileAtomic(settingsPath, append(js, '\n')); err != nil {
 		return "", err
 	}
+	budget := ""
+	if v := r.s.cfg("claude_max_usd", ""); v != "" {
+		budget = " --max-budget-usd " + shellQuote(v)
+	}
 	return "claude -p --model " + shellQuote(claudeModel(r.s, name)) +
 		" --output-format json --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
-		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) + " {message}", nil
+		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) + budget + " {message}", nil
 }
 
 // agentUsage is the cost and token usage of one agent job (zero when unknown).

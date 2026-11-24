@@ -496,6 +496,7 @@ func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out 
 		fmt.Fprintf(f, "\n--- result ---\n%s\n", text)
 	}
 	out = parseReturn(text)
+	out["_tail"] = lastLines(text, 20)
 	model := ""
 	if r.backend == "claude" && os.Getenv("FACTORY_AGENT_CMD") == "" {
 		model = claudeModel(r.s, name)
@@ -506,6 +507,15 @@ func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out 
 	}
 	fmt.Fprintf(f, "\n[%.0fs]\n", secs)
 	return out, true
+}
+
+// lastLines returns the last n lines of s.
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (r *runner) killAll() {
@@ -565,6 +575,14 @@ func (r *runner) buildJob(it Item, t Task, fix bool) {
 		r.blockAndPark(it, t, fmt.Sprintf("builder %s: %s", firstWord(out["STATUS"]), orDash(out["NOTE"])))
 		return
 	default:
+		if st, _ := gitRun(wt, "status", "--short"); st != "" {
+			stat, _ := gitRun(wt, "diff", "--stat")
+			r.log("%s %s: no STATUS, work left in worktree → continue", tag(it), label)
+			r.failRound(it, t, "previous attempt ran out of budget before finishing (no STATUS block); "+
+				"continue from the uncommitted changes, don't restart.\n\ngit status --short:\n"+st+
+				"\n\ngit diff --stat:\n"+orDash(stat)+"\n\nlast output:\n"+out["_tail"], true)
+			return
+		}
 		r.blockAndPark(it, t, "builder returned no STATUS block (see .factory/logs/jobs)")
 		return
 	}

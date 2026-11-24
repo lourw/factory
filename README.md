@@ -111,6 +111,7 @@ factory run
 ## Troubleshooting
 
 - **Parked feature:** `factory show <id>` gives the reason and the worktree path. Inspect the worktree; the job logs are in `.factory/logs/jobs/`. Fix the cause (often a packet: `/factory-feature refresh`, or edit with `factory edit task <id> T<n>`), then `factory set <id> --status ready`.
+- **Agent ran out of budget:** a builder that stops without a STATUS block but left changes gets one continue round (counts as a fix round) with its diff stat and the tail of its output. With no changes, or after 2 fix rounds, the feature parks; the worktree is kept, so resume with `factory set <id> --status ready`. On the Claude backend, `factory internal config claude_max_usd <usd>` caps each job's spend (`claude --max-budget-usd`; unset by default).
 - **Gate failing at init:** fix the project until the gate passes, or, for a pre-existing failure you accept, `factory gate config <name> '<cmd>' --known-failing`. It's reported as KNOWN-FAIL and doesn't block.
 - **Stuck run:** Ctrl-C (it waits for running jobs), Ctrl-C again to kill them, then `factory run` to resume. If a run died hard, the next run removes the stale lock and integration worktree on its own.
 - **Logs:** `.factory/logs/run-<ts>.log` (run progress), `.factory/logs/jobs/` (one file per agent job), `.factory/logs/<ts>-<pid>/` (full gate and test output; agents only see excerpts).

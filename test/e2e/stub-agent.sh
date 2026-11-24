@@ -17,6 +17,9 @@ plan)
   done
   echo "DECISION: planned"; echo "REASON: stub" ;;
 build)
+  if grep -q NOSTATUS <<<"$head" && [ ! -e .nostatus-done ]; then
+    echo partial > partial.txt; touch .nostatus-done; echo "working..."; exit 0
+  fi
   echo "item $item $task" >> "feature-$item.txt"
   if grep -q SHARED <<<"$head"; then echo "line from item $item $task" >> shared.txt; fi
   if grep -q LIBEDIT <<<"$head"; then sed -i 's/^five$/FIVE/' lib.txt; sed -i '1i new-b' lib.txt; sed -i '1i new-a' lib.txt; fi
