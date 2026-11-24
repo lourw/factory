@@ -48,7 +48,9 @@ func integrationWorktree(s *Store) string { return filepath.Join(worktreesBase(s
 
 func featureDirName(it Item) string { return fid(it.ID) + "-" + it.Slug }
 
-func slotPath(s *Store, n int) string { return filepath.Join(worktreesBase(s), fmt.Sprintf("slot-%d", n)) }
+func slotPath(s *Store, n int) string {
+	return filepath.Join(worktreesBase(s), fmt.Sprintf("slot-%d", n))
+}
 
 func parkedPath(s *Store, it Item) string {
 	return filepath.Join(worktreesBase(s), "parked-"+featureDirName(it))
