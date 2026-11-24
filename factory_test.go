@@ -386,13 +386,10 @@ func TestNextRunnable(t *testing.T) {
 		{N: 3, Status: "todo"},
 		{N: 4, Status: "todo", Deps: "T2,T3"},
 	}
-	if got := nextRunnable(ts, false, nil); got == nil || got.N != 3 {
+	if got := nextRunnable(ts, nil); got == nil || got.N != 3 {
 		t.Fatalf("want T3 (T2 waits on unverified T1), got %+v", got)
 	}
-	if got := nextRunnable(ts, true, nil); got == nil || got.N != 2 {
-		t.Fatalf("pipeline: want T2, got %+v", got)
-	}
-	if got := nextRunnable(ts, false, set("T3")); got != nil {
+	if got := nextRunnable(ts, set("T3")); got != nil {
 		t.Fatalf("skip: want nil, got %+v", got)
 	}
 	if allVerified(ts) || !allVerified([]Task{{N: 1, Status: "verified"}}) || allVerified(nil) {

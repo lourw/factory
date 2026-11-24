@@ -140,10 +140,11 @@ var commands = map[string]command{
 	"land":   {cmdLand, []string{"push"}, "human", "land [--push]: fast-forward main to factory (rebases + gates first if main diverged), run post_land, then push main to `remote` if --push"},
 	"review": {cmdReview, nil, "human", "review: per unlanded factory commit: subject, item, ACs, tasks/fix rounds, agent runs + cost, shortstat; then a total"},
 	"set":    {cmdSet, nil, "human", "set <item> [-p 1-4] [--title t] [--kind k] [--scope s] [--status s]: edit a feature (parked → --status ready resumes it)"},
+	"stats":  {cmdStats, []string{"all"}, "human", "stats [-a]: lead time, fix rounds, gate pass rates"},
 	"clean":  {cmdClean, []string{"parked"}, "human", "clean [--parked]: remove merged/dropped/orphan worktrees and branches, remap shifted packets, report stale ones"},
 	// skill
 	"add":      {cmdAdd, nil, "skill", "add <title...> [--kind feat|fix|chore|refactor|perf|test|docs|build|ci] [--scope s] [-p 1-4] [--slug s]"},
-	"write":    {cmdWrite, []string{"append"}, "skill", "write <kind> [item] [task] [--append] <<'EOF': save a doc (spec task report verify merge-msg notes map lessons)"},
+	"write":    {cmdWrite, []string{"append"}, "skill", "write <kind> [item] [task] [--append] <<'EOF': save a doc (spec task report verify merge-msg map lessons)"},
 	"task-add": {cmdTaskAdd, []string{"body", "force"}, "skill", "task-add <item> <title...> [--covers AC1,AC2] [--deps T1] [--body (packet on stdin)]"},
 	"cat":      {cmdCat, []string{"raw"}, "skill", "cat <kind> [item] [task] [--raw]: print a doc with its header (plan = tasks + coverage + packets)"},
 	"import":   {cmdImport, []string{"ready"}, "skill", "import [file|-] [--ready]: create an item with spec, tasks and packets from one file"},
@@ -155,19 +156,16 @@ var commands = map[string]command{
 	"gate":  {cmdGate, nil, "agent", "gate [name...] [--item i] [--task t]: run the gate in the current worktree (gate config: see internal)"},
 	"test":  {cmdTest, nil, "agent", "test <args...>: run test_focused in the current worktree"},
 	// internal
-	"task-next": {cmdTaskNext, []string{"pipeline"}, "internal", "task-next <item> [--pipeline] [--exclude T3]"},
-	"task-set":  {cmdTaskSet, nil, "internal", "task-set <item> <task> [--status s] [--sha x] [--note n] [--title t] [--covers c] [--deps d]"},
-	"log":       {cmdLog, nil, "internal", "log <item> <msg...> [--task Tn] [--kind k]"},
-	"template":  {cmdTemplate, nil, "internal", "template <name>: spec bug task report verify map lessons init"},
-	"install":   {cmdInstall, []string{"uninstall", "force"}, "internal", "install [--link <repo>] [--uninstall] [--force]: opencode agents/commands + skills"},
-	"stats":     {cmdStats, []string{"all"}, "internal", "stats [-a]: lead time, fix rounds, gate pass rates"},
-	"retro":     {cmdRetro, nil, "internal", "retro [--since ts|item]: what changed since the map was written (for the skill's retro mode)"},
-	"config":    {cmdConfig, nil, "internal", "config [key] [value]: per-project settings (worktree_root cache_dir tagging post_land remote main_branch backend claude_model claude_model_overseer claude_model_builder claude_model_verifier claude_effort claude_effort_overseer claude_effort_builder claude_effort_verifier claude_max_usd; '-' unsets)"},
+	"task-set": {cmdTaskSet, nil, "internal", "task-set <item> <task> [--status s] [--sha x] [--note n] [--title t] [--covers c] [--deps d]"},
+	"log":      {cmdLog, nil, "internal", "log <item> <msg...> [--task Tn] [--kind k]"},
+	"template": {cmdTemplate, nil, "internal", "template <name>: spec bug task report verify map lessons init"},
+	"install":  {cmdInstall, []string{"uninstall", "force"}, "internal", "install [--link <repo>] [--uninstall] [--force]: opencode agents/commands + skills"},
+	"retro":    {cmdRetro, nil, "internal", "retro [--since ts|item]: what changed since the map was written (for the skill's retro mode)"},
+	"config":   {cmdConfig, nil, "internal", "config [key] [value]: per-project settings (worktree_root cache_dir tagging post_land remote main_branch backend claude_model[_overseer|_builder|_verifier] claude_effort[_<role>] claude_max_usd; '-' unsets)"},
 }
 
 // shown alongside a group in help, without being a separate command
 var helpExtras = map[string][]string{
-	"skill":    {"brief refresh <item> <task>: packet + diff hunks for its stale refs (see `factory help agent`)"},
 	"internal": {"gate config [name] [cmd...] [--known-failing] | gate config --env NAME '<value>': gate checks and env for setup/gate/test/agents; {slot} {cache} {worktree} expand ('n/a' removes)"},
 }
 
@@ -224,7 +222,8 @@ func main() {
 		}
 	}
 	c, ok := commands[args[0]]
-	if !ok || (c.group == "internal") != internal {
+	// stats moved to the human group; `factory internal stats` still works
+	if !ok || ((c.group == "internal") != internal && !(internal && args[0] == "stats")) {
 		fmt.Fprintf(os.Stderr, "factory: unknown command %q (see factory --help)\n", args[0])
 		os.Exit(1)
 	}

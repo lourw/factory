@@ -51,14 +51,14 @@ var (
 		"building": "`factory run` (in progress)",
 		"judging":  "`factory run` (in progress)",
 		"merging":  "`factory run` (in progress)",
-		"merged":   "`factory land` to fast-forward main",
+		"merged":   "`factory review`, then `factory land`",
 		"parked":   "inspect the worktree (`factory show %d`), fix (or `/factory-feature refresh`), then `factory set %[1]d --status ready`",
 		"dropped":  "-",
 	}
 	taskStatuses = []string{"todo", "built", "failed", "verified", "blocked", "dropped"}
 	mark         = map[string]string{"todo": "[ ]", "built": "[~]", "failed": "[-]", "verified": "[x]", "blocked": "[!]", "dropped": "[-]"}
 	projectDocs  = set("map", "lessons")
-	itemDocs     = set("spec", "notes", "merge-msg")
+	itemDocs     = set("spec", "merge-msg")
 	taskDocs     = set("task", "report", "verify")
 	templateFor  = map[string]string{"spec": "spec", "task": "task", "report": "report", "verify": "verify",
 		"map": "map", "lessons": "lessons"}
@@ -69,14 +69,11 @@ var (
 type Item struct {
 	ID, Priority, Slot                                            int
 	Slug, Title, Kind, Status, Base, Scope, ParkReason, MergedSha string
-	After                                                         string // comma-separated item ids that must merge first
-	Filler                                                        bool
 	Created, Updated                                              float64
 }
 
 type Task struct {
 	ItemID, N, Fixes                       int
-	Partial                                bool
 	Title, Covers, Deps, Status, Sha, Note string
 	Updated                                float64
 }
@@ -173,8 +170,7 @@ func openStore(root string, create bool) *Store {
 func (s *Store) migrate() {
 	for _, c := range [][3]string{
 		{"items", "scope", "TEXT DEFAULT ''"}, {"items", "park_reason", "TEXT DEFAULT ''"}, {"items", "merged_sha", "TEXT DEFAULT ''"},
-		{"items", "slot", "INTEGER DEFAULT 0"}, {"items", "after_ids", "TEXT DEFAULT ''"}, {"items", "filler", "INTEGER DEFAULT 0"},
-		{"tasks", "partial", "INTEGER DEFAULT 0"}, {"agent_runs", "tools", "TEXT DEFAULT ''"},
+		{"items", "slot", "INTEGER DEFAULT 0"}, {"agent_runs", "tools", "TEXT DEFAULT ''"},
 		{"gate_runs", "tree", "TEXT DEFAULT ''"}, {"items", "rerun_from", "TEXT DEFAULT ''"},
 	} {
 		if !s.hasColumn(c[0], c[1]) {
@@ -274,16 +270,14 @@ func (s *Store) exec(q string, args ...any) sql.Result {
 // ---------------------------------------------------------------- items
 
 const itemCols = "id,slug,title,kind,priority,status,COALESCE(base,''),COALESCE(created,0),COALESCE(updated,0)," +
-	"COALESCE(scope,''),COALESCE(park_reason,''),COALESCE(merged_sha,''),COALESCE(slot,0),COALESCE(after_ids,''),COALESCE(filler,0)"
+	"COALESCE(scope,''),COALESCE(park_reason,''),COALESCE(merged_sha,''),COALESCE(slot,0)"
 
 type scanner interface{ Scan(...any) error }
 
 func scanItem(r scanner) (Item, error) {
 	var it Item
-	var filler int
 	err := r.Scan(&it.ID, &it.Slug, &it.Title, &it.Kind, &it.Priority, &it.Status, &it.Base, &it.Created, &it.Updated,
-		&it.Scope, &it.ParkReason, &it.MergedSha, &it.Slot, &it.After, &filler)
-	it.Filler = filler != 0
+		&it.Scope, &it.ParkReason, &it.MergedSha, &it.Slot)
 	return it, err
 }
 
@@ -364,15 +358,24 @@ func next(it Item) string {
 	return fmt.Sprintf(f, it.ID)
 }
 
+// nextFor is next with git context: a merged item is done once main contains it.
+func nextFor(s *Store, it Item) string {
+	if it.Status != "merged" {
+		return next(it)
+	}
+	if isAncestor(s.root, it.MergedSha, mainBranch(s)) {
+		return "-"
+	}
+	return next(it)
+}
+
 // ---------------------------------------------------------------- tasks
 
-const taskCols = "item_id,n,title,covers,deps,status,COALESCE(sha,''),fixes,COALESCE(note,''),COALESCE(updated,0),COALESCE(partial,0)"
+const taskCols = "item_id,n,title,covers,deps,status,COALESCE(sha,''),fixes,COALESCE(note,''),COALESCE(updated,0)"
 
 func scanTask(r scanner) (Task, error) {
 	var t Task
-	var partial int
-	err := r.Scan(&t.ItemID, &t.N, &t.Title, &t.Covers, &t.Deps, &t.Status, &t.Sha, &t.Fixes, &t.Note, &t.Updated, &partial)
-	t.Partial = partial != 0
+	err := r.Scan(&t.ItemID, &t.N, &t.Title, &t.Covers, &t.Deps, &t.Status, &t.Sha, &t.Fixes, &t.Note, &t.Updated)
 	return t, err
 }
 

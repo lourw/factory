@@ -44,8 +44,10 @@ Because they're symlinks, edits in this repo take effect immediately. Without `-
 | `board [-a] [--flat] [--done] [--kind k]` | Health header: integration commit and how far `factory` is ahead of main, install status, gate checks and last result, worktree count, stale-packet count, registered projects. Below it, features grouped by status, each with its next step. `-a` covers every registered project; `--flat` gives one list. |
 | `show <item> [--md] [-n N]` | One feature: status, park reason, worktree, tasks, docs, recent events. `--md` prints a markdown summary for a PR. |
 | `run [--slots 3] [--features 2] [--stale refresh\|hold] [--main b] [--dry-run]` | The scheduler (see "How a run works"). |
+| `review` | Per unlanded `factory` commit: subject, item, ACs, tasks and fix rounds, agent runs and cost, shortstat; then a total. |
 | `land` | Fast-forward main to `factory`. If main diverged, it first rebases `factory` onto main in a temporary worktree and runs the gate there. Refuses while a run is active or when the main checkout is dirty. |
 | `set <item> [-p 1-4] [--title t] [--kind k] [--scope s] [--status s]` | Edit a feature. On a parked item, `--status ready` resumes it: blocked and failed tasks reset, and the existing worktree and branch are kept. |
+| `stats [-a]` | Lead time, fix rounds, gate pass rates (`factory internal stats` still works). |
 | `clean [--parked]` | Remove worktrees and branches of merged, dropped and orphaned features, run `git worktree prune`, and auto-remap shifted packet refs. Parked worktrees: asks y/N per item on a TTY, keeps them otherwise, `--parked` removes them (branch kept). It lists changed packets as "needs a model → /factory-feature refresh" and never edits those. |
 
 ### Project setup: skill init mode (Claude Code) or /factory-init (opencode)
@@ -60,7 +62,7 @@ One-time interactive setup: discovers the setup and gate commands and writes the
 - **retro:** `factory internal retro`, then only the changed map sections are rewritten (`factory write map`) and 1-3 lessons appended for recurring friction (`factory write lessons --append`).
 
 ### Other command groups
-Skill commands (`add`, `write`, `task-add`, `cat`, `ready`, `stale`, `brief refresh`, `edit`), agent commands (`brief`, `write`, `test`, `gate`) and internal commands (`task-set`, `task-next`, `log`, `template`, `gate config`, `install`, `stats`, `retro`) are documented by `factory help skill|agent|internal`. Internal commands run as `factory internal <cmd>`; the exception is `gate config`, which is spelled `factory gate config`.
+Skill commands (`add`, `write`, `task-add`, `cat`, `ready`, `stale`, `brief refresh`, `edit`), agent commands (`brief`, `write`, `test`, `gate`) and internal commands (`task-set`, `log`, `template`, `gate config`, `install`, `retro`) are documented by `factory help skill|agent|internal`. Internal commands run as `factory internal <cmd>`; the exception is `gate config`, which is spelled `factory gate config`.
 
 `factory internal retro [--since <ts|item>]` prints a short digest of what changed since the code map was last saved: merged items, `git diff --stat` on `factory`, park reasons and blocking verify findings, fix rounds, and the map's size. The skill's retro mode uses it to keep the map and lessons current. When items have merged since the map was saved, `factory board` shows `map stale (N merged since)` in its header.
 
@@ -82,9 +84,9 @@ factory run
 ```
 
 - **One job per feature at a time.** A feature's verifier runs on the committed worktree while that feature's builder is idle, so tests are allowed. Parallelism comes from running several features at once.
-- **Agents** are headless processes, launched with opencode by default or Claude Code with the `claude` backend (see [Claude backend](#claude-backend)): `opencode run --agent <name> --auto --archived --title <t> "Run \`factory brief …\` and follow it exactly."`, run in the feature's worktree. The scheduler parses the final `STATUS:`, `VERDICT:` or `DECISION:` block and treats the database as the source of truth. Each job's output goes to `.factory/logs/jobs/`.
+- **Agents** are headless processes in the feature's worktree, told "Run \`factory brief …\` and follow it exactly": `opencode run --agent <name> …` by default, or `claude -p …` with the [Claude backend](#claude-backend). The scheduler parses the final `STATUS:`, `VERDICT:` or `DECISION:` block and treats the database as the source of truth. Each job's output goes to `.factory/logs/jobs/`.
 - **Build:** builder → the scheduler re-runs the gate and records it → commit in the worktree as `<kind>(<scope>): T<n> <title>` → verifier.
-- **Fix rounds → park:** a gate failure or `VERDICT: FAIL` sends the task back to the builder in fix mode, with the findings in its brief. After 2 fix rounds the task is blocked and the feature parked. A builder `blocked`/`failed` result, or a missing return block, parks immediately.
+- **Fix rounds → park:** a gate failure or `VERDICT: FAIL` sends the task back to the builder in fix mode, with the findings in its brief. After 2 fix rounds the task is blocked and the feature parked. A builder `blocked`/`failed` result parks immediately; a missing STATUS block with changes left gets a continue round (see Troubleshooting), without changes it parks.
 - **Judge:** when every task is verified, the overseer gets the ACs, task verdicts and diffstat (not the full diff). It decides `merge` (and writes the squash-commit body with `factory write merge-msg`), `tasks-added` (back to building), or `park`.
 - **Merge sequence** (serialized):
   1. In the integration worktree, rebase `factory` onto main if main moved. On conflict, an overseer resolve job runs; if that fails, the rebase is aborted and merging pauses for the rest of the run.
@@ -92,7 +94,7 @@ factory run
   3. The gate runs in the feature worktree.
   4. `git merge --squash` into `factory`, committed as `<kind>(<scope>): <title>` with the judge's body and a `Factory-Item:` trailer.
   5. The feature worktree and branch are removed and the status becomes `merged`.
-- **Worktrees** live in `$XDG_DATA_HOME/factory/worktrees/<project>-<hash>/`: `NNN-slug/` per feature (branch `factory-wip/NNN-slug`), `_factory/` during a run, and `_land/` during a diverged land. Merged features are cleaned up immediately. Parked features keep their worktree until `factory clean`.
+- **Worktrees** live in `$XDG_DATA_HOME/factory/worktrees/<project>-<hash>/`: `slot-N/` per in-flight feature (branch `factory-wip/NNN-slug`), `parked-NNN-slug/` while parked, `_factory/` during a run, and `_land/` during a diverged land. Merged features are cleaned up immediately. Parked features keep their worktree until `factory clean`.
 - **Stale packets:** packet "Read first" refs (`path:A-B`, `path (symbol)`, `path`) are recorded against the factory tip when written. Right before a builder launches, refs are re-checked:
   - shifted ranges are auto-remapped in the packet text;
   - changed, missing or symbol-gone refs trigger an overseer refresh job with `--stale=refresh` (the default);
@@ -155,7 +157,7 @@ main.go         command table, help groups, arg parser, embeds
 store.go        schema, migrations, items/tasks/docs/events
 cmd_human.go    board, show, set, clean
 cmd_pm.go       init, add, ready, show details
-cmd_task.go     task-add, task-set, task-next, nextRunnable
+cmd_task.go     task-add, task-set, nextRunnable
 cmd_doc.go      cat, write, edit, template, briefs (build verify plan judge resolve)
 cmd_gate.go     gate, gate config, test, setup, stats, export
 cmd_retro.go    retro digest (what changed since the map was saved)
@@ -163,7 +165,7 @@ git.go          worktrees, integration branch, run lock, land, gc
 run.go          the scheduler: jobs, agents, merge sequence, recovery, summary
 stale.go        packet refs, range remapping, stale/refresh
 install.go      install/uninstall of agents, commands, skills
-templates/      spec bug task report verify review map lessons (embedded)
+templates/      spec bug task report verify map lessons (embedded)
 agents/         opencode agent prompts (embedded; symlinked by install.sh)
 commands/       /factory-init (embedded)
 skills/         factory-feature skill (embedded)
@@ -173,7 +175,6 @@ Run the tests with `go vet ./... && go test ./...`. The unit tests cover the arg
 
 ## Not yet
 
-- No run with a real local model has been tested yet; only the stub agent has been exercised end to end.
 - No parallel tasks within one feature (one job per feature at a time, by design for now).
 - The second-Ctrl-C kill path isn't covered by the e2e tests.
 - opencode also reads `~/.claude/skills`, so it may list `factory-feature` twice.

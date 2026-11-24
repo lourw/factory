@@ -87,7 +87,7 @@ func integrationLine(s *Store) string {
 		line += fmt.Sprintf(", %s behind", behind)
 	}
 	if ahead != "0" {
-		line += " → factory land"
+		line += " → factory review, then land"
 	}
 	return line
 }
@@ -145,7 +145,7 @@ func boardLine(s *Store, it Item, withStatus bool) string {
 	if it.Status == "parked" && it.ParkReason != "" {
 		line += "  (" + it.ParkReason + ")"
 	}
-	if nx := next(it); nx != "-" {
+	if nx := nextFor(s, it); nx != "-" {
 		line += "\n      → " + nx
 	}
 	return line

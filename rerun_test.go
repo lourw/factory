@@ -83,10 +83,10 @@ func TestDroppedTask(t *testing.T) {
 		t.Fatal("dropped status/mark")
 	}
 	ts := []Task{{N: 1, Status: "dropped"}, {N: 2, Status: "todo", Deps: "T1"}}
-	if got := nextRunnable(ts, false, nil); got == nil || got.N != 2 {
+	if got := nextRunnable(ts, nil); got == nil || got.N != 2 {
 		t.Fatalf("dropped skipped and satisfies deps: got %+v", got)
 	}
-	if nextRunnable([]Task{{N: 1, Status: "dropped"}}, false, nil) != nil {
+	if nextRunnable([]Task{{N: 1, Status: "dropped"}}, nil) != nil {
 		t.Fatal("dropped task must not run")
 	}
 	if !allVerified([]Task{{N: 1, Status: "verified"}, {N: 2, Status: "dropped"}}) {

@@ -124,7 +124,7 @@ func showItem(s *Store, it Item, events int) {
 	if s.db.QueryRow("SELECT count(*), COALESCE(sum(cost_usd),0), COALESCE(sum(secs),0) FROM agent_runs WHERE item_id=?", it.ID).Scan(&runs, &cost, &secs) == nil && runs > 0 {
 		fmt.Printf("agents: %d runs, $%.2f, %.0fs\n", runs, cost, secs)
 	}
-	fmt.Printf("next: %s\n", next(it))
+	fmt.Printf("next: %s\n", nextFor(s, it))
 	if n := s.staleCount(it); n > 0 {
 		fmt.Printf("stale: %d packet ref(s) need a refresh (factory stale %d)\n", n, it.ID)
 	}

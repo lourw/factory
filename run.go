@@ -315,7 +315,7 @@ func (r *runner) nextAction(it Item, dry bool) *action {
 				return &action{prio: 1, it: it, label: fmt.Sprintf("verify T%d", t.N), fn: func() { r.verifyJob(it, t) }}
 			}
 		}
-		if t := nextRunnable(ts, false, nil); t != nil {
+		if t := nextRunnable(ts, nil); t != nil {
 			t := *t
 			if a := r.staleGate(it, t, dry); a != nil || r.held[it.ID] != "" {
 				return a

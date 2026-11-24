@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E for phase-3 features: slots + cache/env, tagging, deps/overlap, partial, filler.
+# E2E for phase-3 features: slots + cache/env, tagging, deps/overlap.
 # Each scenario builds its own repo; everything lives under $SP. Real configs untouched.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

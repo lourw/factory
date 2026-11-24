@@ -27,7 +27,7 @@ func resolveDoc(s *Store, kind, itemRef, taskRef string) (int, int) {
 		it := s.item(itemRef)
 		return it.ID, s.task(it, taskRef).N
 	}
-	die("unknown doc kind '%s' (project: map lessons | item: spec plan notes merge-msg | task: task report verify)", kind)
+	die("unknown doc kind '%s' (project: map lessons | item: spec plan merge-msg | task: task report verify)", kind)
 	return 0, 0
 }
 

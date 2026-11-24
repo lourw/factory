@@ -97,16 +97,13 @@ func cmdTaskSet(a Args) {
 }
 
 // nextRunnable returns the first todo task whose deps are all satisfied
-// (verified, or also built with pipeline), skipping ids in skip; nil if none.
-func nextRunnable(ts []Task, pipeline bool, skip map[string]bool) *Task {
+// (verified or dropped), skipping ids in skip; nil if none.
+func nextRunnable(ts []Task, skip map[string]bool) *Task {
 	st := map[string]string{}
 	for _, t := range ts {
 		st[fmt.Sprintf("T%d", t.N)] = t.Status
 	}
 	ok := set("verified", "dropped")
-	if pipeline {
-		ok["built"] = true
-	}
 	for i, t := range ts {
 		if t.Status != "todo" || skip[fmt.Sprintf("T%d", t.N)] {
 			continue
@@ -135,30 +132,4 @@ func allVerified(ts []Task) bool {
 		}
 	}
 	return true
-}
-
-func cmdTaskNext(a Args) {
-	s := cur()
-	it := s.item(a.need(0, "item"))
-	ts := s.tasks(it)
-	excl, _ := a.flag("exclude")
-	if t := nextRunnable(ts, a.Bools["pipeline"], set(strings.Split(normTaskList(excl), ",")...)); t != nil {
-		fmt.Printf("T%d %s\n", t.N, t.Title)
-		return
-	}
-	if allVerified(ts) {
-		fmt.Println("all-verified")
-		return
-	}
-	var waiting []string
-	for _, t := range ts {
-		if t.Status != "todo" && t.Status != "verified" {
-			waiting = append(waiting, fmt.Sprintf("T%d(%s)", t.N, t.Status))
-		}
-	}
-	if len(waiting) > 0 {
-		fmt.Printf("none (waiting on: %s)\n", strings.Join(waiting, ", "))
-		return
-	}
-	fmt.Println("none")
 }

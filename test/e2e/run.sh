@@ -72,7 +72,7 @@ assert "merged worktrees removed" "[ ! -d $WT/00$A-shared-one ] && [ ! -d $WT/00
 assert "integration worktree removed after run" "! git worktree list | grep -q _factory"
 assert "user checkout untouched (on main, clean)" '[ "$(git symbolic-ref --short HEAD)" = main ] && [ -z "$(git status --porcelain)" ]'
 factory board | head -3
-assert "board header shows ahead count" "factory board | grep -q '+2 ahead of main → factory land'"
+assert "board header shows ahead count" "factory board | grep -q '+2 ahead of main → factory review, then land'"
 
 echo "== refuse run while factory is checked out"
 git switch -q factory; out=$(factory run 2>&1); git switch -q main
@@ -110,7 +110,9 @@ printf '## Acceptance criteria\n- **AC1**: a regression test reproduces the bug 
 assert "ready accepts fix with regression AC" "factory ready $bid >/dev/null"
 factory set $bid --status dropped >/dev/null; factory set $((bid+1)) --status dropped >/dev/null
 assert "board --kind filters" "factory board --kind chore | grep -q FAILVERIFY && ! factory board --kind feat | grep -q FAILVERIFY"
-assert "help shows only the 8 human commands" '[ "$(factory --help | grep -cE "^  [a-z]")" = 8 ]'
+assert "help shows only the 9 human commands" '[ "$(factory --help | grep -cE "^  [a-z]")" = 9 ]'
+assert "stats is human; internal stats still works" "factory --help | grep -q '^  stats' && factory stats >/dev/null && factory internal stats >/dev/null"
+assert "brief refresh listed once in skill help" '[ "$(factory help skill | grep -c "refresh <item> <task>")" = 1 ]'
 assert "old names removed" "! factory gc 2>/dev/null && ! factory gate-set x y 2>/dev/null && ! factory template spec 2>/dev/null && ! factory ls 2>/dev/null"
 assert "internal dispatch works" "factory internal template task | grep -q '## Goal'"
 assert "show --md exports" "factory show $A --md | grep -q '^## feat(core): SHARED one'"
