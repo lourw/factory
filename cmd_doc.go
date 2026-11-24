@@ -328,6 +328,7 @@ func briefBuild(s *Store, it Item, t Task, fix bool) string {
 	}
 	parts := []string{
 		fmt.Sprintf("# Build brief: %s T%d: %s", fid(it.ID), t.N, t.Title),
+		"Budget: " + budgetFor(s).Reading,
 		fmt.Sprintf("item: %s: %s | mode: %s\n%s\nIf `git status` shows uncommitted changes, they are from an interrupted attempt at this task: keep what's useful, discard the rest.",
 			kindScope(it), it.Title, mode, worktreeLine(s, it)),
 		acBlock(s, it, t.Covers),
@@ -362,6 +363,7 @@ func briefVerify(s *Store, it Item, t Task, tests bool) string {
 	sh := short(t.Sha)
 	return strings.Join([]string{
 		fmt.Sprintf("# Verify brief: %s T%d: %s", fid(it.ID), t.N, t.Title),
+		"Budget: " + budgetFor(s).Reading,
 		fmt.Sprintf("commit: %s | tests: %s\n%s", t.Sha, mode, worktreeLine(s, it)),
 		acBlock(s, it, t.Covers),
 		section("Packet (what was asked)", s.getDoc("task", it.ID, t.N)),
@@ -384,18 +386,20 @@ func briefPlan(s *Store, it Item) string {
 		}
 		lines = append(lines, fmt.Sprintf("- T%d %s | covers %s | deps %s | %s | %s", t.N, t.Title, orDash(t.Covers), orDash(t.Deps), t.Status, has))
 	}
+	b := budgetFor(s)
 	return strings.Join([]string{
 		fmt.Sprintf("# Plan brief: %s %s: %s", fid(it.ID), kindScope(it), it.Title),
+		"Budget: " + b.Reading,
 		worktreeLine(s, it),
 		section("Spec", s.getDoc("spec", it.ID, 0)),
 		section("Tasks", strings.Join(lines, "\n")),
 		section("Code map", stripComments(s.getDoc("map", 0, 0))),
 		section("Project lessons", stripComments(s.getDoc("lessons", 0, 0))),
 		"## Your job\n" +
-			"Write a packet for every task marked NEEDS PACKET (" + strings.Join(missing, ", ") + "). The builder is a small model that reads ONLY its packet, so make it self-contained:\n" +
-			"- Research narrowly: `rg -n` for symbols, read ~60-line windows. Don't survey the whole repo.\n" +
+			"Write a packet for every task marked NEEDS PACKET (" + strings.Join(missing, ", ") + "). The builder reads ONLY its packet, so make it self-contained:\n" +
+			"- Research within the Budget above. Don't survey the whole repo.\n" +
 			"- Read-first files with line ranges, the pattern to copy, the exact test to add, constraints, out of scope. ≤120 lines.\n" +
-			"- Size: one builder session, roughly ≤150 changed lines. If a task is bigger, split it:\n" +
+			fmt.Sprintf("- Size: one builder session, roughly ≤%d changed lines. If a task is bigger, split it:\n", b.TaskLines) +
 			fmt.Sprintf("  `factory task-add %d \"<title>\" --covers AC2 --deps T1` and narrow the original with `factory internal task-set %d T<n> --title ... --covers ... --deps ...`.\n", it.ID, it.ID) +
 			"- Every AC must stay covered by some task.",
 		fmt.Sprintf("## Commands\n- packet: factory write task %d T<n> <<'EOF'\n  ...\n  EOF   (sections: `factory internal template task`)\n- check: factory cat plan %d\n\n"+
@@ -430,6 +434,7 @@ func briefJudge(s *Store, it Item) string {
 	}
 	return strings.Join([]string{
 		fmt.Sprintf("# Judge brief: %s %s: %s", fid(it.ID), kindScope(it), it.Title),
+		"Budget: " + budgetFor(s).Reading,
 		worktreeLine(s, it),
 		acBlock(s, it, ""),
 		section("Tasks", strings.Join(ts, "\n")),

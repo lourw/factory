@@ -5,9 +5,9 @@ description: Turn an idea or a bug report into factory-ready work (spec with tes
 
 # factory-feature
 
-`factory` is a local work queue plus an autonomous implementer. You write features; `factory run` builds them with small local models (builder, verifier, overseer), one task per agent session, and squash-merges finished features into a `factory` branch. The user lands that branch on main later with `factory land`.
+`factory` is a local work queue plus an autonomous implementer. You write features; `factory run` builds them with agents (builder, verifier, overseer), one task per agent session, and squash-merges finished features into a `factory` branch. The user lands that branch on main later with `factory land`.
 
-The builder is a **small model that reads only its task packet**. Packet quality decides whether a task succeeds.
+The builder **reads only its task packet**. Packet quality decides whether a task succeeds.
 
 ## Modes
 - **Feature, full plan** (default when you can read the codebase): spec, tasks, and a complete packet for every task. The scheduler then skips the overseer's plan job.
@@ -53,7 +53,7 @@ EOF
 Every AC must be checkable by an automated test. Use `**ACn**:` exactly; the CLI parses it.
 
 ## 4. Split into tasks
-Each task is one builder session: roughly 150 changed lines or fewer, one coherent change, leaving the repo green.
+Each task is one builder session: ≤150 changed lines on the opencode backend, ≤400 on claude (see `factory internal config` → effective budget), one coherent change, leaving the repo green.
 ```sh
 factory task-add 4 "Add token-bucket limiter in src/api/middleware/ratelimit.ts" --covers AC1
 factory task-add 4 "Return Retry-After on 429 responses" --covers AC2 --deps T1

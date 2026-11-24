@@ -312,7 +312,8 @@ func cmdConfig(a Args) {
 		for _, k := range keys {
 			fmt.Printf("%-14s %-30s %s\n", k, orDash(s.cfg(k, "")), configKeys[k])
 		}
-		fmt.Printf("\neffective: worktrees %s | cache %s\n", worktreesBase(s), s.cacheDir())
+		b := budgetFor(s)
+		fmt.Printf("\neffective: worktrees %s | cache %s | budget %s (tasks ≤%d lines)\n", worktreesBase(s), s.cacheDir(), b.Backend, b.TaskLines)
 		return
 	case 1:
 		if _, ok := configKeys[a.Pos[0]]; !ok {

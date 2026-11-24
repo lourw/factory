@@ -467,7 +467,7 @@ func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out 
 	cmd.Env = append(os.Environ(),
 		"PATH="+r.exeDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"GIT_EDITOR=true", "GIT_MERGE_AUTOEDIT=no",
-		"FACTORY_JOB="+label, "FACTORY_ITEM="+strconv.Itoa(it.ID))
+		"FACTORY_JOB="+label, "FACTORY_ITEM="+strconv.Itoa(it.ID), "FACTORY_BACKEND="+r.backend)
 	cmd.Env = append(cmd.Env, r.s.envFor(r.s.ctxFor(dir))...)
 	r.log("%s %s → %s", tag(it), label, name)
 	start := time.Now()
