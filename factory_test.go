@@ -305,8 +305,16 @@ func TestAgentsLabel(t *testing.T) {
 	if got := agentsLabel(s); got != "claude/opus" {
 		t.Fatalf("claude default model: got %q", got)
 	}
+	s.setCfg("claude_model_builder", "sonnet")
+	if got := agentsLabel(s); got != "claude/opus (builder sonnet)" {
+		t.Fatalf("claude overrides: got %q", got)
+	}
+	s.setCfg("claude_model_verifier", "haiku")
+	if got := agentsLabel(s); got != "claude/opus (builder sonnet, verifier haiku)" {
+		t.Fatalf("claude overrides: got %q", got)
+	}
 	s.setCfg("claude_model", "sonnet")
-	if got := agentsLabel(s); got != "claude/sonnet" {
+	if got := agentsLabel(s); got != "claude/sonnet (verifier haiku)" {
 		t.Fatalf("claude model: got %q", got)
 	}
 	t.Setenv("FACTORY_AGENT_CMD", "x {message}")
@@ -341,6 +349,13 @@ func TestAgentCmdTemplate(t *testing.T) {
 	}
 	if !strings.Contains(got, "--model 'opus'") && !strings.Contains(got, "--model opus") {
 		t.Fatalf("model: %q", got)
+	}
+	s.setCfg("claude_model_builder", "sonnet")
+	if b, err := r.agentCmdTemplate("factory-builder"); err != nil || !strings.Contains(b, "--model "+shellQuote("sonnet")) {
+		t.Fatalf("builder override: %q %v", b, err)
+	}
+	if v, err := r.agentCmdTemplate("factory-verifier"); err != nil || !strings.Contains(v, "--model "+shellQuote("opus")) {
+		t.Fatalf("verifier fallback: %q %v", v, err)
 	}
 	dir := filepath.Join(s.root, ".factory", "agents")
 	b, err := os.ReadFile(filepath.Join(dir, "factory-builder.settings.json"))

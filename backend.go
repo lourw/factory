@@ -39,9 +39,18 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 	if err := writeFileAtomic(settingsPath, append(js, '\n')); err != nil {
 		return "", err
 	}
-	return "claude -p --model " + shellQuote(r.s.cfg("claude_model", "opus")) +
+	return "claude -p --model " + shellQuote(claudeModel(r.s, name)) +
 		" --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
 		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) + " {message}", nil
+}
+
+// claudeModel is the claude model for an agent: claude_model_<role> if set,
+// else claude_model, else opus. role is the agent name without "factory-".
+func claudeModel(s *Store, agent string) string {
+	if m := s.cfg("claude_model_"+strings.TrimPrefix(agent, "factory-"), ""); m != "" {
+		return m
+	}
+	return s.cfg("claude_model", "opus")
 }
 
 // writeFileAtomic writes data to a temp file beside path and renames it over

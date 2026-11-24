@@ -206,14 +206,17 @@ func (s *Store) hasColumn(table, col string) bool {
 
 // configKeys are the per-project settings for `factory internal config`.
 var configKeys = map[string]string{
-	"worktree_root": "where feature worktrees live (default $XDG_DATA_HOME/factory/worktrees/<project>-<hash>; relative paths are from the repo root)",
-	"cache_dir":     "persistent per-project cache, exposed as {cache} / FACTORY_CACHE (default <repo>/.factory/cache)",
-	"tagging":       "off | semver: annotated vX.Y.Z tags on factory squash commits (default off)",
-	"post_land":     "command run in the main checkout after `factory land` (FACTORY_LANDED_RANGE is set)",
-	"remote":        "remote for `factory land --push` (default origin)",
-	"main_branch":   "the branch factory integrates from and lands to (default main, master, or the current branch)",
-	"backend":       "opencode | claude: which CLI runs agent jobs (default opencode)",
-	"claude_model":  "model for the claude backend (default opus)",
+	"worktree_root":         "where feature worktrees live (default $XDG_DATA_HOME/factory/worktrees/<project>-<hash>; relative paths are from the repo root)",
+	"cache_dir":             "persistent per-project cache, exposed as {cache} / FACTORY_CACHE (default <repo>/.factory/cache)",
+	"tagging":               "off | semver: annotated vX.Y.Z tags on factory squash commits (default off)",
+	"post_land":             "command run in the main checkout after `factory land` (FACTORY_LANDED_RANGE is set)",
+	"remote":                "remote for `factory land --push` (default origin)",
+	"main_branch":           "the branch factory integrates from and lands to (default main, master, or the current branch)",
+	"backend":               "opencode | claude: which CLI runs agent jobs (default opencode)",
+	"claude_model":          "model for the claude backend (default opus)",
+	"claude_model_overseer": "model for the overseer on the claude backend (default: claude_model)",
+	"claude_model_builder":  "model for the builder on the claude backend (default: claude_model)",
+	"claude_model_verifier": "model for the verifier on the claude backend (default: claude_model)",
 }
 
 func (s *Store) cfg(key, def string) string {

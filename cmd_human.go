@@ -112,7 +112,17 @@ func agentsLabel(s *Store) string {
 		return "custom (FACTORY_AGENT_CMD)"
 	}
 	if s.cfg("backend", "opencode") == "claude" {
-		return "claude/" + s.cfg("claude_model", "opus")
+		base := s.cfg("claude_model", "opus")
+		var over []string
+		for _, role := range []string{"overseer", "builder", "verifier"} {
+			if m := claudeModel(s, role); m != base {
+				over = append(over, role+" "+m)
+			}
+		}
+		if len(over) == 0 {
+			return "claude/" + base
+		}
+		return "claude/" + base + " (" + strings.Join(over, ", ") + ")"
 	}
 	return "opencode"
 }
