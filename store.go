@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS factory_tags(tag TEXT PRIMARY KEY, sha TEXT, item_id 
 CREATE TABLE IF NOT EXISTS gate_runs(
   id INTEGER PRIMARY KEY, ts REAL, item_id INTEGER DEFAULT 0, task_n INTEGER DEFAULT 0,
   name TEXT, ok INTEGER, secs REAL, log TEXT);
+CREATE TABLE IF NOT EXISTS agent_runs(
+  id INTEGER PRIMARY KEY, ts REAL, item_id INTEGER, label TEXT, agent TEXT, model TEXT DEFAULT '',
+  secs REAL, cost_usd REAL DEFAULT 0, input_tokens INTEGER DEFAULT 0, output_tokens INTEGER DEFAULT 0,
+  cache_read INTEGER DEFAULT 0, cache_creation INTEGER DEFAULT 0, turns INTEGER DEFAULT 0);
 `
 
 var (
@@ -318,6 +322,13 @@ func (s *Store) itemsWithStatus(sts []string) []Item {
 
 func (s *Store) event(itemID int, kind, msg string, n int) {
 	s.exec("INSERT INTO events(ts,item_id,task_n,kind,msg) VALUES(?,?,?,?,?)", now(), itemID, n, kind, msg)
+}
+
+// recordAgentRun stores the duration, cost and token usage of one agent job.
+func (s *Store) recordAgentRun(itemID int, label, agent, model string, secs float64, u agentUsage) {
+	s.exec(`INSERT INTO agent_runs(ts,item_id,label,agent,model,secs,cost_usd,input_tokens,output_tokens,
+  cache_read,cache_creation,turns) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		now(), itemID, label, agent, model, secs, u.Cost, u.In, u.Out, u.CacheRead, u.CacheCreate, u.Turns)
 }
 
 func (s *Store) setStatus(it Item, status, why string) {

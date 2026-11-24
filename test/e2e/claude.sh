@@ -15,7 +15,9 @@ for a in "\$@"; do
   [ "\$prev" = "--append-system-prompt-file" ] && agent=\$(basename "\$a" .prompt.md)
   prev="\$a"
 done
-exec "$HERE/stub-agent.sh" "\$agent" x "\${@: -1}"
+out=\$("$HERE/stub-agent.sh" "\$agent" x "\${@: -1}"); rc=\$?
+printf '%s' "\$out" | python3 -I -c 'import json,sys; print(json.dumps({"result": sys.stdin.read(), "total_cost_usd": 0.25, "num_turns": 1, "usage": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}}))'
+exit \$rc
 EOF
 chmod +x "$SP/bin/claude"
 R=$SP/e2ec; rm -rf $R $XDG_DATA_HOME "$SP/claude-args"; mkdir -p $R; cd $R
@@ -35,6 +37,9 @@ echo "== run (backend claude)"
 factory run --features 1 > $SP/claude.out 2>&1
 grep -E 'merged|squashed|parked|can.t' $SP/claude.out
 assert "feature merged" "factory show $id | grep -q 'status: merged'"
+assert "stats shows agent cost" "factory internal stats | grep -q '^agent .*cost=\$[0-9.]*[1-9]'"
+assert "stats shows merged item cost" "factory internal stats | grep -q 'cost per merged item: median \$0.[0-9]*[1-9].*total \$[0-9]'"
+assert "show prints agents line" "factory show $id | grep -q '^agents: [1-9][0-9]* runs, \$[0-9.]*[1-9]'"
 assert "claude -p invoked" "grep -q -- '-p ' $SP/claude-args"
 assert "--model opus" "grep -q -- '--model opus' $SP/claude-args"
 assert "--permission-mode dontAsk" "grep -q -- '--permission-mode dontAsk' $SP/claude-args"

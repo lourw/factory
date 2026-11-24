@@ -348,6 +348,39 @@ func cmdStats(a Args) {
 			fmt.Printf("gate %-13s runs=%-4d pass=%.0f%%  avg=%.0fs\n", name, cnt, pass*100, secs)
 		}
 		rows.Close()
+		printAgentStats(s)
+	}
+}
+
+// printAgentStats prints per-agent cost/token/duration lines and the cost per
+// merged item; nothing when no agent runs are recorded.
+func printAgentStats(s *Store) {
+	rows, err := s.db.Query(`SELECT agent, count(*), sum(cost_usd), avg(secs),
+		avg(input_tokens+cache_read+cache_creation), avg(output_tokens) FROM agent_runs GROUP BY agent ORDER BY agent`)
+	check(err)
+	for rows.Next() {
+		var agent string
+		var cnt int
+		var cost, secs, in, out float64
+		check(rows.Scan(&agent, &cnt, &cost, &secs, &in, &out))
+		fmt.Printf("agent %-16s runs=%d cost=$%.2f avg=%.0fs in=%.0fk out=%.1fk\n", agent, cnt, cost, secs, in/1000, out/1000)
+	}
+	rows.Close()
+	rows, err = s.db.Query(`SELECT sum(r.cost_usd) FROM agent_runs r JOIN items i ON i.id=r.item_id
+		WHERE i.status='merged' GROUP BY r.item_id`)
+	check(err)
+	var costs []float64
+	var total float64
+	for rows.Next() {
+		var c float64
+		check(rows.Scan(&c))
+		costs = append(costs, c)
+		total += c
+	}
+	rows.Close()
+	if len(costs) > 0 {
+		sort.Float64s(costs)
+		fmt.Printf("cost per merged item: median $%.2f, total $%.2f\n", costs[len(costs)/2], total)
 	}
 }
 

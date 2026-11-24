@@ -40,8 +40,39 @@ func (r *runner) agentCmdTemplate(name string) (string, error) {
 		return "", err
 	}
 	return "claude -p --model " + shellQuote(claudeModel(r.s, name)) +
-		" --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
+		" --output-format json --permission-mode dontAsk --no-session-persistence --append-system-prompt-file " +
 		shellQuote(promptPath) + " --settings " + shellQuote(settingsPath) + " {message}", nil
+}
+
+// agentUsage is the cost and token usage of one agent job (zero when unknown).
+type agentUsage struct {
+	Cost                                   float64
+	In, Out, CacheRead, CacheCreate, Turns int
+}
+
+// parseClaudeJSON decodes `claude -p --output-format json` output into the
+// final result text and usage. ok is false when out isn't such a JSON object.
+func parseClaudeJSON(out string) (text string, u agentUsage, ok bool) {
+	out = strings.TrimSpace(out)
+	if !strings.HasPrefix(out, "{") {
+		return "", u, false
+	}
+	var v struct {
+		Result *string `json:"result"`
+		Cost   float64 `json:"total_cost_usd"`
+		Turns  int     `json:"num_turns"`
+		Usage  struct {
+			In          int `json:"input_tokens"`
+			Out         int `json:"output_tokens"`
+			CacheRead   int `json:"cache_read_input_tokens"`
+			CacheCreate int `json:"cache_creation_input_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil || v.Result == nil {
+		return "", u, false
+	}
+	return *v.Result, agentUsage{Cost: v.Cost, In: v.Usage.In, Out: v.Usage.Out,
+		CacheRead: v.Usage.CacheRead, CacheCreate: v.Usage.CacheCreate, Turns: v.Turns}, true
 }
 
 // claudeModel is the claude model for an agent: claude_model_<role> if set,

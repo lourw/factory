@@ -99,6 +99,40 @@ func TestE2EScriptsExitOnFailure(t *testing.T) {
 	}
 }
 
+func TestParseClaudeJSON(t *testing.T) {
+	js := `{"result":"hi\nSTATUS: done","total_cost_usd":0.5,"num_turns":3,"usage":{"input_tokens":2,"output_tokens":11,"cache_read_input_tokens":100,"cache_creation_input_tokens":50}}`
+	text, u, ok := parseClaudeJSON("\n" + js + "\n")
+	if !ok || !strings.Contains(text, "STATUS: done") {
+		t.Fatalf("parse: ok=%v text=%q", ok, text)
+	}
+	if want := (agentUsage{Cost: 0.5, In: 2, Out: 11, CacheRead: 100, CacheCreate: 50, Turns: 3}); u != want {
+		t.Fatalf("usage: %+v want %+v", u, want)
+	}
+	if _, _, ok := parseClaudeJSON("STATUS: done"); ok {
+		t.Fatal("plain text parsed as JSON")
+	}
+	if _, _, ok := parseClaudeJSON(`{"foo":1}`); ok {
+		t.Fatal("JSON without result accepted")
+	}
+}
+
+func TestRecordAgentRun(t *testing.T) {
+	s := newTestStore(t)
+	s.recordAgentRun(6, "build T1", "factory-builder", "opus", 12.5,
+		agentUsage{Cost: 0.25, In: 1, Out: 2, CacheRead: 3, CacheCreate: 4, Turns: 5})
+	var label, model string
+	var cost float64
+	var turns, cacheCreate int
+	err := s.db.QueryRow("SELECT label, model, cost_usd, turns, cache_creation FROM agent_runs WHERE item_id=6").
+		Scan(&label, &model, &cost, &turns, &cacheCreate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if label != "build T1" || model != "opus" || cost != 0.25 || turns != 5 || cacheCreate != 4 {
+		t.Fatalf("row: %q %q %v %d %d", label, model, cost, turns, cacheCreate)
+	}
+}
+
 func TestParseReturn(t *testing.T) {
 	out := "thinking...\nSTATUS: blocked\nmore\n**STATUS:** done\n`TASK: T2`\n> NOTE: added limiter\nDECISION: tasks-added\n"
 	m := parseReturn(out)
@@ -342,7 +376,7 @@ func TestAgentCmdTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"claude -p", "--permission-mode dontAsk", "--no-session-persistence",
-		"--append-system-prompt-file", "--settings", "{message}"} {
+		"--append-system-prompt-file", "--settings", "--output-format json", "{message}"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in %q", want, got)
 		}
