@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -28,6 +32,66 @@ func TestParseReturn(t *testing.T) {
 	m := parseReturn(out)
 	if m["STATUS"] != "done" || m["TASK"] != "T2" || m["NOTE"] != "added limiter" || firstWord(m["DECISION"]) != "tasks-added" {
 		t.Fatalf("parseReturn: %v", m)
+	}
+}
+
+func TestClaudeAllowedTools(t *testing.T) {
+	tools := func(name string) []string {
+		b, err := opencodeFS.ReadFile("agents/factory-" + name + ".md")
+		if err != nil {
+			t.Fatal(err)
+		}
+		front, _ := splitFrontmatter(string(b))
+		return claudeAllowedTools(front)
+	}
+	has := func(l []string, s string) bool {
+		for _, x := range l {
+			if x == s {
+				return true
+			}
+		}
+		return false
+	}
+	b, v, o := tools("builder"), tools("verifier"), tools("overseer")
+	for _, want := range []string{"Edit", "Write", "Read", "Grep", "Glob", "Bash(factory *)", "Bash(rg *)"} {
+		if !has(b, want) {
+			t.Fatalf("builder missing %q: %v", want, b)
+		}
+	}
+	if !has(v, "Bash(git show*)") || has(v, "Edit") || has(v, "Write") {
+		t.Fatalf("verifier: %v", v)
+	}
+	if !has(o, "Bash(git commit*)") || has(o, "Bash(git push*)") || has(o, "Bash(git reset*)") {
+		t.Fatalf("overseer: %v", o)
+	}
+	for _, l := range [][]string{b, v, o} {
+		if has(l, "Bash(*)") {
+			t.Fatalf("wildcard bash allowed: %v", l)
+		}
+		seen := map[string]bool{}
+		for _, x := range l {
+			if seen[x] {
+				t.Fatalf("duplicate %q: %v", x, l)
+			}
+			seen[x] = true
+		}
+	}
+}
+
+func TestSplitFrontmatter(t *testing.T) {
+	src, err := opencodeFS.ReadFile("agents/factory-builder.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	front, body := splitFrontmatter(string(src))
+	if !strings.HasPrefix(body, "You are a **factory builder**") || strings.Contains(body, "permission:") {
+		t.Fatalf("body: %.80q", body)
+	}
+	if !strings.Contains(front, "permission:") {
+		t.Fatalf("front: %q", front)
+	}
+	if f, b := splitFrontmatter("no frontmatter\n---\nhere"); f != "" || b != "no frontmatter\n---\nhere" {
+		t.Fatalf("plain: %q %q", f, b)
 	}
 }
 
@@ -156,5 +220,78 @@ func TestParseRefs(t *testing.T) {
 	}
 	if got := newRaw(refs[0], 42, 122); got != "`src/a.ts:42-122`" {
 		t.Errorf("newRaw: %s", got)
+	}
+}
+
+func TestAgentsLabel(t *testing.T) {
+	s := newTestStore(t)
+	t.Setenv("FACTORY_AGENT_CMD", "")
+	if got := agentsLabel(s); got != "opencode" {
+		t.Fatalf("default: got %q", got)
+	}
+	s.setCfg("backend", "claude")
+	if got := agentsLabel(s); got != "claude/opus" {
+		t.Fatalf("claude default model: got %q", got)
+	}
+	s.setCfg("claude_model", "sonnet")
+	if got := agentsLabel(s); got != "claude/sonnet" {
+		t.Fatalf("claude model: got %q", got)
+	}
+	t.Setenv("FACTORY_AGENT_CMD", "x {message}")
+	if got := agentsLabel(s); got != "custom (FACTORY_AGENT_CMD)" {
+		t.Fatalf("custom: got %q", got)
+	}
+}
+
+func TestAgentCmdTemplate(t *testing.T) {
+	s := newTestStore(t)
+	t.Setenv("OPENCODE_CONFIG_DIR", t.TempDir()) // use the embedded agent files
+	r := &runner{s: s, root: s.root, backend: "claude"}
+	t.Setenv("FACTORY_AGENT_CMD", "x {message}")
+	if got, err := r.agentCmdTemplate("factory-builder"); err != nil || got != "x {message}" {
+		t.Fatalf("FACTORY_AGENT_CMD not preferred: %q %v", got, err)
+	}
+	t.Setenv("FACTORY_AGENT_CMD", "")
+	r.backend = "opencode"
+	if got, err := r.agentCmdTemplate("factory-builder"); err != nil || got != defaultAgentCmd {
+		t.Fatalf("opencode: %q %v", got, err)
+	}
+	r.backend = "claude"
+	got, err := r.agentCmdTemplate("factory-builder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"claude -p", "--permission-mode dontAsk", "--no-session-persistence",
+		"--append-system-prompt-file", "--settings", "{message}"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %q", want, got)
+		}
+	}
+	if !strings.Contains(got, "--model 'opus'") && !strings.Contains(got, "--model opus") {
+		t.Fatalf("model: %q", got)
+	}
+	dir := filepath.Join(s.root, ".factory", "agents")
+	b, err := os.ReadFile(filepath.Join(dir, "factory-builder.settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Permissions struct {
+			Allow []string `json:"allow"`
+		} `json:"permissions"`
+	}
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		t.Fatalf("settings json: %v\n%s", err, b)
+	}
+	found := false
+	for _, a := range cfg.Permissions.Allow {
+		found = found || a == "Bash(factory *)"
+	}
+	if !found {
+		t.Fatalf("allow: %v", cfg.Permissions.Allow)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "factory-builder.prompt.md"))
+	if err != nil || strings.HasPrefix(string(body), "---") || len(body) == 0 {
+		t.Fatalf("prompt body: %v\n%.200s", err, body)
 	}
 }

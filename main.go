@@ -136,7 +136,7 @@ var commands = map[string]command{
 	"init":  {cmdInit, nil, "human", "init: set up .factory/ in this repo (then /factory-init in opencode)"},
 	"board": {cmdBoard, []string{"all", "done", "flat"}, "human", "board [-a] [--flat] [--done] [--kind k]: health summary + features by status with their next step"},
 	"show":  {cmdShow, []string{"md"}, "human", "show <item> [--md] [-n events]: one feature: tasks, worktree, events (--md: summary for a PR)"},
-	"run":   {cmdRun, []string{"dry-run"}, "human", "run [--slots 3] [--features 2] [--stale refresh|hold] [--main b] [--dry-run]: build ready features until the queue is empty"},
+	"run":   {cmdRun, []string{"dry-run"}, "human", "run [--slots 3] [--features 2] [--stale refresh|hold] [--backend opencode|claude] [--main b] [--dry-run]: build ready features until the queue is empty"},
 	"land":  {cmdLand, nil, "human", "land: fast-forward main to factory (rebases + gates first if main diverged)"},
 	"set":   {cmdSet, nil, "human", "set <item> [-p 1-4] [--title t] [--kind k] [--scope s] [--status s]: edit a feature (parked → --status ready resumes it)"},
 	"clean": {cmdClean, []string{"parked"}, "human", "clean [--parked]: remove merged/dropped/orphan worktrees and branches, remap shifted packets, report stale ones"},

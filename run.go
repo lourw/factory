@@ -35,6 +35,7 @@ type runner struct {
 	merged      []string
 
 	staleMode string
+	backend   string          // opencode | claude
 	held      map[int]string  // item id → reason (stale packets, --stale=hold)
 	refreshed map[string]bool // "item:task" refreshed once this run
 
@@ -88,6 +89,13 @@ func cmdRun(a Args) {
 			die("--stale must be refresh or hold")
 		}
 		r.staleMode = m
+	}
+	r.backend = s.cfg("backend", "opencode")
+	if b, ok := a.flag("backend"); ok {
+		if b != "opencode" && b != "claude" {
+			die("--backend must be opencode or claude")
+		}
+		r.backend = b
 	}
 	if r.slots < 1 || r.features < 1 {
 		die("--slots and --features must be ≥ 1")
@@ -434,9 +442,10 @@ func firstLine(s string) string { l, _, _ := strings.Cut(strings.TrimSpace(s), "
 func (r *runner) agent(name string, it Item, label, briefArgs, dir string) (out map[string]string, alive bool) {
 	title := strings.TrimSpace(fmt.Sprintf("factory %s %s", fid(it.ID), label))
 	msg := fmt.Sprintf("Run `factory brief %s` and follow it exactly. Finish with the return block it specifies.", briefArgs)
-	tmpl := os.Getenv("FACTORY_AGENT_CMD")
-	if tmpl == "" {
-		tmpl = defaultAgentCmd
+	tmpl, err := r.agentCmdTemplate(name)
+	if err != nil {
+		r.log("%s %s: can't start agent: %v", tag(it), label, err)
+		return map[string]string{}, true
 	}
 	cmdStr := strings.NewReplacer("{agent}", shellQuote(name), "{title}", shellQuote(title),
 		"{message}", shellQuote(msg), "{dir}", shellQuote(dir)).Replace(tmpl)

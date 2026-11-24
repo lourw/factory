@@ -102,8 +102,19 @@ func boardHeader(s *Store, items []Item) {
 		run = fmt.Sprintf(" | run active (pid %d)", pid)
 	}
 	fmt.Printf("%s%s\n", integrationLine(s), run)
-	fmt.Printf("install %s | gate %s | worktrees %d | stale %d | projects %d\n",
-		installOK(), lastGate(s), worktreeCount(s), stale, len(registry()))
+	fmt.Printf("install %s | agents %s | gate %s | worktrees %d | stale %d | projects %d\n",
+		installOK(), agentsLabel(s), lastGate(s), worktreeCount(s), stale, len(registry()))
+}
+
+// agentsLabel names the effective agent backend for the board header.
+func agentsLabel(s *Store) string {
+	if os.Getenv("FACTORY_AGENT_CMD") != "" {
+		return "custom (FACTORY_AGENT_CMD)"
+	}
+	if s.cfg("backend", "opencode") == "claude" {
+		return "claude/" + s.cfg("claude_model", "opus")
+	}
+	return "opencode"
 }
 
 func boardLine(s *Store, it Item, withStatus bool) string {
@@ -306,6 +317,9 @@ func cmdConfig(a Args) {
 	}
 	if key == "tagging" && val != "off" && val != "semver" && val != "-" {
 		die("tagging must be off or semver")
+	}
+	if key == "backend" && val != "opencode" && val != "claude" && val != "-" {
+		die("backend must be opencode or claude")
 	}
 	if key == "worktree_root" && activeRun(s.root) != 0 {
 		die("a run is active; change worktree_root between runs")

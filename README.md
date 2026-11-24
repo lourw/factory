@@ -78,7 +78,7 @@ factory run
 ```
 
 - **One job per feature at a time.** A feature's verifier runs on the committed worktree while that feature's builder is idle, so tests are allowed. Parallelism comes from running several features at once.
-- **Agents** are headless processes: `opencode run --agent <name> --auto --archived --title <t> "Run \`factory brief …\` and follow it exactly."`, run in the feature's worktree. The scheduler parses the final `STATUS:`, `VERDICT:` or `DECISION:` block and treats the database as the source of truth. Each job's output goes to `.factory/logs/jobs/`.
+- **Agents** are headless processes, launched with opencode by default or Claude Code with the `claude` backend (see [Claude backend](#claude-backend)): `opencode run --agent <name> --auto --archived --title <t> "Run \`factory brief …\` and follow it exactly."`, run in the feature's worktree. The scheduler parses the final `STATUS:`, `VERDICT:` or `DECISION:` block and treats the database as the source of truth. Each job's output goes to `.factory/logs/jobs/`.
 - **Build:** builder → the scheduler re-runs the gate and records it → commit in the worktree as `<kind>(<scope>): T<n> <title>` → verifier.
 - **Fix rounds → park:** a gate failure or `VERDICT: FAIL` sends the task back to the builder in fix mode, with the findings in its brief. After 2 fix rounds the task is blocked and the feature parked. A builder `blocked`/`failed` result, or a missing return block, parks immediately.
 - **Judge:** when every task is verified, the overseer gets the ACs, task verdicts and diffstat (not the full diff). It decides `merge` (and writes the squash-commit body with `factory write merge-msg`), `tasks-added` (back to building), or `park`.
@@ -126,6 +126,16 @@ factory run
 | `VISUAL` / `EDITOR` | Used by `factory edit`. |
 
 The main branch is detected as `main`, then `master`, then the current branch, and stored. Override it with `factory run --main <branch>`.
+
+### Claude backend
+
+Agents run with opencode by default. To run them with Claude Code instead:
+
+- `factory internal config backend claude` selects the Claude backend for the project (`opencode` switches back).
+- `factory internal config claude_model <model>` sets the model (default `opus`).
+- `factory run --backend opencode|claude` overrides the configured backend for one run.
+
+With the Claude backend, each job runs `claude -p … --permission-mode dontAsk`, with the agent's prompt appended to the system prompt and a tool allowlist derived from that agent's opencode `permission` block (the derived prompt and settings files are written to `.factory/agents/`). `FACTORY_AGENT_CMD`, when set, overrides both backends. `factory board` shows the effective backend in its header (`agents opencode`, `agents claude/<model>` or `agents custom (FACTORY_AGENT_CMD)`).
 
 ## Working on the factory itself
 

@@ -212,6 +212,8 @@ var configKeys = map[string]string{
 	"post_land":     "command run in the main checkout after `factory land` (FACTORY_LANDED_RANGE is set)",
 	"remote":        "remote for `factory land --push` (default origin)",
 	"main_branch":   "the branch factory integrates from and lands to (default main, master, or the current branch)",
+	"backend":       "opencode | claude: which CLI runs agent jobs (default opencode)",
+	"claude_model":  "model for the claude backend (default opus)",
 }
 
 func (s *Store) cfg(key, def string) string {
