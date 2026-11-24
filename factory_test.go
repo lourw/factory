@@ -27,6 +27,37 @@ func TestParseArgs(t *testing.T) {
 	}
 }
 
+func TestE2EScriptsExitOnFailure(t *testing.T) {
+	paths, err := filepath.Glob("test/e2e/*.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := 0
+	for _, path := range paths {
+		if filepath.Base(path) == "stub-agent.sh" {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		line := ""
+		lines := strings.Split(string(data), "\n")
+		for i := len(lines) - 1; i >= 0; i-- {
+			if line = strings.TrimSpace(lines[i]); line != "" {
+				break
+			}
+		}
+		if line != "exit $fail" {
+			t.Errorf("%s: last line must be exit $fail, got %q", path, line)
+		}
+		checked++
+	}
+	if checked == 0 {
+		t.Fatal("no e2e scripts found in test/e2e")
+	}
+}
+
 func TestParseReturn(t *testing.T) {
 	out := "thinking...\nSTATUS: blocked\nmore\n**STATUS:** done\n`TASK: T2`\n> NOTE: added limiter\nDECISION: tasks-added\n"
 	m := parseReturn(out)

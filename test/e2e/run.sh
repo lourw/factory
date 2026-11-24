@@ -119,3 +119,4 @@ factory internal install --uninstall >/dev/null
 assert "uninstall clean" "[ ! -e $CLAUDE_CONFIG_DIR/skills/factory-feature ] && [ -z \"\$(ls -A $OPENCODE_CONFIG_DIR/agents)\" ]"
 factory board
 [ $fail = 0 ] && echo "E2E: ALL PASS" || echo "E2E: FAILURES"
+exit $fail

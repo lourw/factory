@@ -34,3 +34,4 @@ factory run --features 1 > $SP/stale2.out 2>&1
 grep -E 'refresh|merged|squashed|parked' $SP/stale2.out
 assert "refresh job ran and Z merged" "grep -q 'packet refreshed' $SP/stale2.out && factory show $Z | grep -q 'status: merged'"
 [ $fail = 0 ] && echo "E2E-STALE: ALL PASS" || echo "E2E-STALE: FAILURES"
+exit $fail

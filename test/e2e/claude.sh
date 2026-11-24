@@ -42,3 +42,4 @@ assert "--no-session-persistence" "grep -q -- '--no-session-persistence' $SP/cla
 assert "--settings" "grep -q -- '--settings ' $SP/claude-args"
 assert "builder settings allow factory" "grep -q 'Bash(factory \*)' .factory/agents/factory-builder.settings.json"
 [ $fail = 0 ] && echo "E2E-CLAUDE: ALL PASS" || echo "E2E-CLAUDE: FAILURES"
+exit $fail
