@@ -82,13 +82,22 @@ func runCheck(root, name, cmd, logdir string, env []string) (bool, float64, stri
 func excerpt(log string) string {
 	b, _ := os.ReadFile(log)
 	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
-	var hits []string
+	// Each hit plus up to 3 following lines; overlapping chunks merge, gaps get "…".
+	var chosen []string
+	last := -1 // index of the last line rendered
 	for i, l := range lines {
-		if hitRe.MatchString(l) && !negRe.MatchString(l) {
-			hits = append(hits, fmt.Sprintf("%d: %s", i+1, l))
+		if !hitRe.MatchString(l) || negRe.MatchString(l) || last >= i+3 {
+			continue
+		}
+		start := max(i, last+1)
+		if last >= 0 && start > last+1 {
+			chosen = append(chosen, "…")
+		}
+		for j := start; j <= i+3 && j < len(lines); j++ {
+			chosen = append(chosen, fmt.Sprintf("%d: %s", j+1, lines[j]))
+			last = j
 		}
 	}
-	chosen := hits
 	if len(chosen) == 0 {
 		chosen = lines
 	}
