@@ -13,11 +13,10 @@ permission:
     "ls*": allow
     "wc *": allow
     "find *": allow
+    "sed -n *": allow
+    "pwd": allow
     "mkdir *": allow
-    "git status*": allow
-    "git diff*": allow
-    "git rm *": allow
-    "git mv *": allow
+    "git *": allow
   task: deny
   webfetch: deny
   websearch: deny

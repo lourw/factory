@@ -13,7 +13,7 @@ An autonomous feature pipeline for one developer.
 cd ~/personal/factory && ./install.sh
 ```
 
-`install.sh` builds the binary into `~/.local/bin/factory` (`go install`), then runs `factory internal install --link "$PWD"`. That symlinks:
+`install.sh` builds the binary into `~/.local/bin/factory` (`go install ./cmd/factory`), then runs `factory internal install --link "$PWD"`. That symlinks:
 
 | What | Where |
 |---|---|
@@ -153,22 +153,25 @@ With the Claude backend, each job runs `claude -p … --permission-mode dontAsk`
 ## Working on the factory itself
 
 ```
-main.go         command table, help groups, arg parser, embeds
-store.go        schema, migrations, items/tasks/docs/events
-cmd_human.go    board, show, set, clean
-cmd_pm.go       init, add, ready, show details
-cmd_task.go     task-add, task-set, nextRunnable
-cmd_doc.go      cat, write, edit, template, briefs (build verify plan judge resolve)
-cmd_gate.go     gate, gate config, test, setup, stats, export
-cmd_retro.go    retro digest (what changed since the map was saved)
-git.go          worktrees, integration branch, run lock, land, gc
-run.go          the scheduler: jobs, agents, merge sequence, recovery, summary
-stale.go        packet refs, range remapping, stale/refresh
-install.go      install/uninstall of agents, commands, skills
-templates/      spec bug task report verify map lessons (embedded)
-agents/         opencode agent prompts (embedded; symlinked by install.sh)
-commands/       /factory-init (embedded)
-skills/         factory-feature skill (embedded)
+cmd/factory/main.go   entry point (calls factory.Main)
+assets.go             embeds templates/, agents/, commands/, skills/
+internal/factory/     the CLI, one package:
+  main.go             command table, help groups, arg parser
+  store.go            schema, migrations, items/tasks/docs/events
+  cmd_human.go        board, show, set, clean
+  cmd_pm.go           init, add, ready, show details
+  cmd_task.go         task-add, task-set, nextRunnable
+  cmd_doc.go          cat, write, edit, template, briefs (build verify plan judge resolve)
+  cmd_gate.go         gate, gate config, test, setup, stats, export
+  cmd_retro.go        retro digest (what changed since the map was saved)
+  git.go              worktrees, integration branch, run lock, land, gc
+  run.go              the scheduler: jobs, agents, merge sequence, recovery, summary
+  stale.go            packet refs, range remapping, stale/refresh
+  install.go          install/uninstall of agents, commands, skills
+templates/            spec bug task report verify map lessons (embedded)
+agents/               opencode agent prompts (embedded; symlinked by install.sh)
+commands/             /factory-init (embedded)
+skills/               factory-feature skill (embedded)
 ```
 
 Run the tests with `go vet ./... && go test ./...`. The unit tests cover the arg parser, return-block parsing, `nextRunnable`, ready validation and status transitions, the v1 → v2 migration, range remapping, and ref parsing. The end-to-end tests are shell scripts that drive real git repos with a stub agent (`FACTORY_AGENT_CMD`): `bash test/e2e/run.sh` and `bash test/e2e/stale.sh` (each builds the binary into a temp dir; set `FACTORY_E2E_DIR` to keep the artifacts).
