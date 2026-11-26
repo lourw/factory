@@ -22,7 +22,7 @@ build)
   fi
   echo "item $item $task" >> "feature-$item.txt"
   if grep -q SHARED <<<"$head"; then echo "line from item $item $task" >> shared.txt; fi
-  if grep -q LIBEDIT <<<"$head"; then sed -i 's/^five$/FIVE/' lib.txt; sed -i '1i new-b' lib.txt; sed -i '1i new-a' lib.txt; fi
+  if grep -q LIBEDIT <<<"$head"; then perl -i -pe 's/^five$/FIVE/; print "new-a\nnew-b\n" if $. == 1' lib.txt; fi
   if grep -q NEEDSFIX <<<"$head"; then touch needs-fix.txt; ls feature-*.txt > fixed.txt; fi
   if factory show "$item" | grep -qE "\b$task\b.*Integrate with factory"; then ls feature-*.txt > fixed.txt; fi
   echo "Status: done" | factory write report "$item" "$task"
@@ -48,7 +48,7 @@ REASON: updated range
 ' ;;
 resolve)
   for f in $(git diff --name-only --diff-filter=U); do
-    sed -i '/^<<<<<<< /d;/^=======$/d;/^>>>>>>> /d' "$f"; git add "$f"
+    perl -i -ne 'print unless /^(<<<<<<< |=======$|>>>>>>> )/' "$f"; git add "$f"
   done
   if [[ "$args" == *rebase* ]]; then git rebase --continue >/dev/null; else git commit -q --no-edit; fi
   printf 'DECISION: resolved\nREASON: kept both sides\n' ;;
